@@ -39,11 +39,21 @@ class Settings:
     model_dir: Path = field(default_factory=lambda: Path(_env("MODEL_DIR", "models")))
 
     # --- S3-compatible storage settings (used when STORAGE_BACKEND=s3) ---
-    s3_endpoint_url: str = field(default_factory=lambda: _env("S3_ENDPOINT_URL", ""))
-    s3_access_key: str = field(default_factory=lambda: _env("S3_ACCESS_KEY", ""))
-    s3_secret_key: str = field(default_factory=lambda: _env("S3_SECRET_KEY", ""))
-    s3_bucket: str = field(default_factory=lambda: _env("S3_BUCKET", "faceclaim"))
-    s3_region: str = field(default_factory=lambda: _env("S3_REGION", "auto"))
+    # Standard AWS SDK names are preferred (boto3-native); the legacy S3_*
+    # names still work for MinIO / Cloudflare R2 setups.
+    s3_endpoint_url: str = field(
+        default_factory=lambda: _env("AWS_ENDPOINT_URL_S3", _env("S3_ENDPOINT_URL", ""))
+    )
+    s3_access_key: str = field(
+        default_factory=lambda: _env("AWS_ACCESS_KEY_ID", _env("S3_ACCESS_KEY", ""))
+    )
+    s3_secret_key: str = field(
+        default_factory=lambda: _env("AWS_SECRET_ACCESS_KEY", _env("S3_SECRET_KEY", ""))
+    )
+    s3_bucket: str = field(default_factory=lambda: _env("S3_BUCKET", "pekaboo"))
+    s3_region: str = field(
+        default_factory=lambda: _env("AWS_REGION", _env("S3_REGION", "auto"))
+    )
 
     # --- Face engine ---
     face_model: str = field(default_factory=lambda: _env("FACE_MODEL", "buffalo_l"))

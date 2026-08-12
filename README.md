@@ -23,12 +23,20 @@ flowchart LR
     APP[Peekaboo app] --> IF{{Storage interface<br/>save / read / exists / delete}}
     IF -->|STORAGE_BACKEND=local| FS[(Local disk<br/>data/)]
     IF -->|STORAGE_BACKEND=s3| MINIO[MinIO<br/>local dev · free]
-    IF -->|STORAGE_BACKEND=s3| R2[Cloudflare R2<br/>prod · 10 GB free · zero egress]
+    IF -->|STORAGE_BACKEND=s3| NEON[Neon object storage<br/>S3-compatible · free tier]
+    IF -->|STORAGE_BACKEND=s3| R2[Cloudflare R2<br/>10 GB free · zero egress]
 ```
 
 * **Local dev:** `STORAGE_BACKEND=local` (default) or MinIO in Docker — same S3 API as production.
-* **Production:** Cloudflare R2 — **10 GB free, $0 egress**, so serving photo galleries never costs anything. Just fill in `S3_*` env vars; zero code changes.
-* Keys like `photos/<uuid>.jpg` are identical on both backends, and every key is validated against a strict pattern (no path traversal).
+* **Neon (this project):** Neon's **S3-compatible object storage** — copy the
+  endpoint + access key/secret from Neon console (Storage → S3) and set
+  `STORAGE_BACKEND=s3` with the standard AWS env names:
+  `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_REGION`, and `S3_BUCKET` (per-project, e.g. `pekaboo`).
+* **Alternative production:** Cloudflare R2 — **10 GB free, $0 egress**, same
+  env-var wiring, zero code changes.
+* Keys like `photos/<uuid>.jpg` are identical on every backend, and every key
+  is validated against a strict pattern (no path traversal).
 
 ---
 
