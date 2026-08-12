@@ -1,47 +1,34 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "./auth";
+import { Outlet, useLocation } from "react-router-dom";
+import { Sidebar } from "@/components/Sidebar";
+import { TopBar } from "@/components/TopBar";
+import { LibraryProvider } from "@/lib/library-context";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function App() {
   const location = useLocation();
-  const { user, loading, logout } = useAuth();
   const isClaim = location.pathname.startsWith("/claim");
 
-  return (
-    <div className="app">
-      <nav className="nav">
-        <Link className="brand" to="/">
-          🫣 Peekaboo
-        </Link>
-        {!isClaim && <span className="tagline">Find every photo that has you in it</span>}
-        <div className="nav-right">
-          {user ? (
-            <div className="user-chip">
-              {user.avatar_url ? (
-                <img className="avatar" src={user.avatar_url} alt="" />
-              ) : (
-                <span className="avatar avatar-fallback">{(user.name || user.email)[0].toUpperCase()}</span>
-              )}
-              <span className="user-email">{user.name || user.email}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => logout()}>
-                Sign out
-              </button>
-            </div>
-          ) : (
-            !loading && !isClaim && <span className="tagline">…</span>
-          )}
-        </div>
-      </nav>
-
-      <main className="container">
+  if (isClaim) {
+    return (
+      <TooltipProvider>
         <Outlet />
-      </main>
+      </TooltipProvider>
+    );
+  }
 
-      <footer className="footer">
-        <p>
-          Photos are private — only a person whose face is in a photo can access it, after
-          verifying with a selfie.
-        </p>
-      </footer>
-    </div>
+  return (
+    <TooltipProvider>
+      <LibraryProvider>
+        <div className="flex h-full overflow-hidden">
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TopBar />
+            <main className="flex-1 overflow-y-auto">
+              <Outlet />
+            </main>
+          </div>
+        </div>
+      </LibraryProvider>
+    </TooltipProvider>
   );
 }

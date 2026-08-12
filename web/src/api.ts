@@ -32,6 +32,38 @@ export interface ClaimResponse {
   photos: ClaimPhoto[];
 }
 
+export interface LibraryFace {
+  id: string;
+  crop_url: string;
+  share_url: string;
+}
+
+export interface LibraryPhoto {
+  id: string;
+  url: string | null;
+  thumb: string | null;
+  width: number;
+  height: number;
+  num_faces: number;
+  uploaded_at: string | null;
+  original_name: string;
+  share_url: string | null;
+  faces: LibraryFace[];
+}
+
+export interface PersonCluster {
+  id: string;
+  avatar: string | null;
+  count: number;
+  face_ids: string[];
+  photo_ids: string[];
+}
+
+export interface LibraryData {
+  photos: LibraryPhoto[];
+  people: PersonCluster[];
+}
+
 export class ApiError extends Error {
   data: Record<string, unknown>;
   status: number;
@@ -90,6 +122,53 @@ export async function getJson<T>(url: string): Promise<T> {
     );
   }
   return data as T;
+}
+
+export async function getLibrary(): Promise<LibraryData> {
+  return getJson<LibraryData>("/api/library");
+}
+
+/**
+ * Upload one image with real byte-progress (XHR), resolving with the same
+ * shape as `postImage`. `onProgress` is 0-100 while bytes transfer; the
+ * server-side face analysis happens after 100% and this promise resolves
+ * when it finishes.
+ */
+export function uploadImageWithProgress(
+  file: File,
+  onProgress: (percent: number) => void,
+): Promise<UploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", file);
+    xhr.open("POST", "/api/upload");
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(xhr.responseText) as Record<string, unknown>;
+      } catch {
+        /* non-JSON error body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data as unknown as UploadResponse);
+      } else {
+        reject(
+          new ApiError(
+            (data.detail as string) || `Upload failed (${xhr.status})`,
+            xhr.status,
+            data,
+          ),
+        );
+      }
+    };
+    xhr.onerror = () => reject(new ApiError("Network error during upload.", 0, {}));
+    xhr.send(form);
+  });
 }
 
 export async function copyText(text: string): Promise<boolean> {

@@ -64,6 +64,44 @@ def test_storage_rejects_path_traversal() -> None:
         store.save("weird name!.jpg", b"x")
 
 
+def test_cluster_faces_groups_by_similarity() -> None:
+    """Greedy clustering: same-person faces group, distinct people don't."""
+    from app.db import Face
+    from app.library import _cluster_faces
+
+    rng = np.random.default_rng(42)
+
+    def mk(i: int, photo_id: str, base: np.ndarray) -> Face:
+        f = Face(
+            id=f"f{i}",
+            photo_id=photo_id,
+            bbox="[0,0,100,100]",
+            crop_key="x",
+            token=f"t{i}",
+            vec=base,
+        )
+        return f
+
+    a = rng.normal(size=512).astype(np.float32)
+    a /= np.linalg.norm(a)
+    b = rng.normal(size=512).astype(np.float32)
+    b /= np.linalg.norm(b)
+    c = rng.normal(size=512).astype(np.float32)
+    c /= np.linalg.norm(c)
+
+    faces = [
+        *[mk(i, "p1", a + rng.normal(scale=0.05, size=512).astype(np.float32)) for i in range(3)],
+        *[mk(i, "p2", b + rng.normal(scale=0.05, size=512).astype(np.float32)) for i in range(3, 5)],
+        mk(5, "p3", c),
+    ]
+    clusters = _cluster_faces(faces, 0.42)
+    sizes = sorted(len(cl["face_ids"]) for cl in clusters)
+    assert sizes == [1, 2, 3]
+    # Every face appears in exactly one cluster.
+    all_ids = [fid for cl in clusters for fid in cl["face_ids"]]
+    assert len(all_ids) == len(set(all_ids)) == 6
+
+
 def test_storage_key_validator_shared_by_both_backends() -> None:
     # This is the guard S3Storage uses too, so both backends get it.
     validate_key("photos/abc-123_x.jpg")

@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ------------------------------------------------------------------ */
+/* Design tokens — the whole product uses exactly these.              */
+/* Three distinct-but-close neutral surfaces (page / card / sidebar), */
+/* ONE accent (indigo) used sparingly, one radius scale.              */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: oklch(0.977 0.002 247.86); /* page   — light gray, not white */
+  --foreground: oklch(0.18 0.004 247.86);
+  --card: oklch(1 0 0); /* surface for cards / dialogs */
+  --card-foreground: oklch(0.18 0.004 247.86);
+  --sidebar: oklch(0.945 0.003 247.86); /* distinct sidebar surface */
+  --sidebar-foreground: oklch(0.28 0.004 247.86);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.004 247.86);
+  --primary: oklch(0.488 0.243 264.38); /* indigo — the single accent */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.945 0.003 247.86);
+  --secondary-foreground: oklch(0.28 0.004 247.86);
+  --muted: oklch(0.953 0.003 247.86);
+  --muted-foreground: oklch(0.545 0.005 247.86);
+  --accent: oklch(0.922 0.004 247.86);
+  --accent-foreground: oklch(0.21 0.004 247.86);
+  --destructive: oklch(0.577 0.245 27.33);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.915 0.004 247.86);
+  --input: oklch(0.915 0.004 247.86);
+  --ring: oklch(0.488 0.243 264.38);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius: 0.625rem; /* one scale: 6px sm · 10px lg · 14px xl */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* Photo grid cells preserve aspect ratio — never square-cropped. */
+  .photo-cell {
+    @apply relative overflow-hidden bg-muted cursor-pointer;
+    border-radius: var(--radius-md);
+  }
+  .photo-cell img {
+    @apply w-full h-full object-cover block;
+    transition: transform 0.25s ease;
+  }
+  .photo-cell:hover img {
+    transform: scale(1.03);
+  }
+  .section-date {
+    @apply text-[13px] font-medium text-muted-foreground tracking-wide;
+  }
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.85 0.004 247.86);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.75 0.005 247.86);
+}

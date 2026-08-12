@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, text
 
-from app import auth, pipeline
+from app import auth, library, pipeline
 from app.config import settings
 from app.db import Face, User, engine, SessionLocal
 from app.storage import LocalStorage, storage
@@ -226,6 +226,12 @@ def api_upload(request: Request, file: UploadFile = File(...), user: User = Depe
             for f in result.faces
         ],
     }
+
+
+@app.get("/api/library")
+def api_library(user: User = Depends(auth.get_current_user)):
+    """The signed-in user's library: all photos + people clusters."""
+    return library.get_library(user.id)
 
 
 @app.get("/api/claim-info/{token}")

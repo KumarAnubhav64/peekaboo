@@ -276,6 +276,7 @@ link — both photos should appear in the gallery (cross-photo matching works).
 | `GET` | `/api/auth/google` | Start Google SSO (redirect) |
 | `GET` | `/api/auth/google/callback` | Google OAuth callback |
 | `POST` | `/api/upload` | Multipart `file` (auth required) → `{photo, faces[]}` |
+| `GET` | `/api/library` | Signed-in user's library: photos + people clusters |
 | `GET` | `/api/claim-info/{token}` | Face id + crop URL for the claim SPA |
 | `POST` | `/api/claim/{token}` | Multipart selfie `file` → `{status, photos[]}` |
 | `GET` | `/api/photo/{photo_id}?token=` | Token-gated original photo |
@@ -283,6 +284,39 @@ link — both photos should appear in the gallery (cross-photo matching works).
 | `GET` | `/health` | Liveness + DB check |
 
 ---
+
+## UI redesign (Google-Photos-style library)
+
+The signed-in experience is a three-zone app shell (sidebar · top bar · content):
+
+```mermaid
+flowchart LR
+    subgraph Shell[Three-zone shell]
+        S[Sidebar<br/>All photos · People · Places<br/>Things · Albums · Trash]
+        T[Top bar<br/>search ⌘K · filters · analyzing banner]
+        C[Content<br/>face strip · date-grouped grid<br/>selection · lightbox]
+    end
+```
+
+* **All photos** — grid grouped by day with sticky headers; cells preserve
+  aspect ratio (never square-cropped). Hover/Shift/Ctrl multi-select with a
+  floating action bar (copy claim links).
+* **People** — faces are clustered server-side (greedy similarity) into a
+  horizontal avatar strip and a full People view; clicking a person filters
+  the library to photos containing them.
+* **Search & filters** — ⌘K command palette (people, dates, file names) and a
+  filter popover (date ranges + people) rendered as removable badges.
+* **Lightbox** — fullscreen dialog with metadata (date, size, people-in-photo
+  chips that filter, copy claim link, download).
+* **Uploads** — drag-and-drop dialog with per-batch progress and a
+  non-blocking "Analyzing…" banner while faces are detected.
+* Places / Things / Albums / Trash are nav views with designed empty states
+  until their backend features ship.
+
+Stack: **Tailwind CSS v4 + shadcn/ui-style primitives + lucide-react**
+(hand-scaffolded — the shadcn registry was unreachable in this environment,
+so the components live in `web/src/components/ui/` and `components.json` is
+ready for future `npx shadcn add`).
 
 ## Project structure
 
@@ -296,14 +330,18 @@ Peekaboo/
 │   ├── db.py            # SQLAlchemy + pgvector models, HNSW index
 │   ├── storage.py       # storage interface: LocalStorage + S3Storage (MinIO/R2)
 │   └── config.py        # env-driven settings
-├── web/                  # React SPA (Vite + TypeScript)
+├── web/                  # React SPA (Vite + TypeScript + Tailwind + shadcn/ui)
 │   ├── src/auth.tsx     # AuthContext (session state, login/signup/logout)
-│   ├── src/pages/       # HomePage (upload) + ClaimPage (verify)
-│   ├── src/components/  # Dropzone, AuthPage, etc.
+│   ├── src/pages/       # LibraryPage (grid), PeoplePage, ClaimPage, ComingSoon
+│   ├── src/components/  # Sidebar, TopBar, FaceStrip, Lightbox, UploadDialog…
+│   ├── src/components/ui # shadcn-style primitives (button, dialog, command…)
+│   ├── src/lib/         # library-context (data/upload/filters) + filter helpers
 │   └── dist/            # build output (served by FastAPI)
 ├── scripts/download_samples.py
+├── scripts/live_flow_test.py
 ├── tests/
-└── DEPLOYMENT.md        # laptop → free-cloud migration plan
+├── DEPLOYMENT.md        # laptop → free-cloud migration plan
+└── TRADEOFFS.md         # every engineering decision + the cost accepted
 ```
 
 ---
