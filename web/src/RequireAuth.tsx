@@ -22,7 +22,7 @@ export default function RequireAuth() {
     );
   }
 
-  if (!user) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/auth" replace />;
 
   return (
     <TooltipProvider>

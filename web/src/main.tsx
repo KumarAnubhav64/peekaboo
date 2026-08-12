@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import LandingPage from "./pages/LandingPage";
 import Gate from "./pages/Gate";
 import RequireAuth from "./RequireAuth";
 import LibraryPage from "./pages/LibraryPage";
@@ -17,8 +18,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* signed-out landing: fullscreen auth page */}
-          <Route path="/" element={<Gate />} />
+          {/* marketing landing page (public) */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* auth: fullscreen sign-in / create-account page */}
+          <Route path="/auth" element={<Gate />} />
 
           {/* public claim page — no shell */}
           <Route path="/claim/:token" element={<ClaimPage />} />

@@ -101,6 +101,20 @@
   }
 }
 
+@keyframes mock-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.mock-fade > * {
+  animation: mock-fade 0.28s ease both;
+}
+
 /* Subtle scrollbars */
 ::-webkit-scrollbar {
   width: 8px;

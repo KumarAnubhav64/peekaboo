@@ -169,7 +169,7 @@ def api_google_callback(code: str, state: str, request: Request):
         logger.error("Google OAuth exchange failed: %s", exc)
         raise HTTPException(status_code=502, detail="Google sign-in failed.") from exc
     user = auth.find_or_create_google_user(profile)
-    resp = RedirectResponse(url="/", status_code=303)
+    resp = RedirectResponse(url="/photos", status_code=303)
     auth.set_session_cookie(resp, user.id)
     resp.delete_cookie("oauth_state", path="/")
     return resp
