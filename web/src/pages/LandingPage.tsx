@@ -6,6 +6,7 @@ import {
   Check,
   CloudArrowUp,
   GraduationCap,
+  HardDrives,
   Heart,
   MapPin,
   MagnifyingGlass,
@@ -16,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { LandingMock } from "@/components/LandingMock";
 import { useAuth } from "@/auth";
 
@@ -156,6 +158,36 @@ const TILES = [
       </div>
     ),
   },
+  {
+    icon: HardDrives,
+    title: "Self-host it",
+    body: "The whole product runs on your own hardware — external drive, home server, or NAS. One command, and every byte of your library stays with you.",
+    wide: true,
+    visual: (
+      <div className="overflow-hidden rounded-xl bg-foreground text-background">
+        <div className="flex items-center gap-1.5 border-b border-white/10 px-3 py-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+          <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+          <span className="ml-2 text-[11px] text-muted-foreground">~ peekaboo</span>
+        </div>
+        <div className="space-y-1.5 px-4 py-3 font-mono text-[11px] leading-relaxed">
+          <p>
+            <span className="text-emerald-400">$</span> docker compose up -d
+          </p>
+          <p>
+            <span className="text-emerald-400">✓</span> app&nbsp;&nbsp;<span className="text-white/60">FastAPI + React</span>
+          </p>
+          <p>
+            <span className="text-emerald-400">✓</span> db&nbsp;&nbsp;&nbsp;<span className="text-white/60">Postgres + pgvector</span>
+          </p>
+          <p>
+            <span className="text-emerald-400">✓</span> minio <span className="text-white/60">your photos, your disk</span>
+          </p>
+        </div>
+      </div>
+    ),
+  },
 ];
 
 function Features() {
@@ -163,13 +195,16 @@ function Features() {
     <section id="features" className="mx-auto max-w-5xl scroll-mt-20 px-4 py-20">
       <p className="text-center text-xs font-semibold uppercase tracking-widest text-primary">Features</p>
       <h2 className="mt-2 text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-        Four ways to find a photo
+        Five ways to keep your photos yours
       </h2>
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        {TILES.map(({ icon: Icon, title, body, visual }) => (
+        {TILES.map(({ icon: Icon, title, body, visual, wide }) => (
           <div
             key={title}
-            className="group rounded-2xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5"
+            className={cn(
+              "group rounded-2xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
+              wide && "sm:col-span-2",
+            )}
           >
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">

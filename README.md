@@ -13,6 +13,9 @@ A production-grade, **100% free** face-recognition pipeline:
 | Database | Neon Postgres + `pgvector` (HNSW index) | free tier |
 | Storage | MinIO / Cloudflare R2 (S3-compatible) or local disk | free |
 
+> 📖 **Full feature list — including self-hosting on your own hardware — in
+> [FEATURES.md](FEATURES.md).**
+
 ## Storage — S3-compatible by default
 
 Images live behind one storage interface with two backends, switched by a
@@ -375,6 +378,7 @@ Peekaboo/
 ├── tests/
 ├── Dockerfile + entrypoint.sh      # app image (React built in-stage)
 ├── docker-compose.yml              # self-hosted suite: app + Postgres + MinIO
+├── FEATURES.md                     # the full feature list (self-hosting included)
 ├── SELFHOST.md                     # run on your own disk/server/NAS
 ├── DEPLOYMENT.md        # laptop → free-cloud migration plan
 └── TRADEOFFS.md         # every engineering decision + the cost accepted
