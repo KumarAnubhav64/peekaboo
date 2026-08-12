@@ -5,6 +5,8 @@ export type DateFilter = "any" | "7d" | "30d" | "this-year";
 
 export interface Filters {
   personId: string | null;
+  placeId: string | null;
+  thing: string | null;
   date: DateFilter;
   q: string;
 }
@@ -28,6 +30,8 @@ interface LibraryContextValue {
   // filters
   filters: Filters;
   setPerson: (id: string | null) => void;
+  setPlace: (id: string | null) => void;
+  setThing: (label: string | null) => void;
   setDate: (d: DateFilter) => void;
   setQuery: (q: string) => void;
   clearFilters: () => void;
@@ -40,7 +44,13 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<UploadItem[]>([]);
-  const [filters, setFilters] = useState<Filters>({ personId: null, date: "any", q: "" });
+  const [filters, setFilters] = useState<Filters>({
+    personId: null,
+    placeId: null,
+    thing: null,
+    date: "any",
+    q: "",
+  });
   const busy = useRef(false);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -121,9 +131,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     upload,
     filters,
     setPerson: (personId) => setFilters((f) => ({ ...f, personId })),
+    setPlace: (placeId) => setFilters((f) => ({ ...f, placeId })),
+    setThing: (thing) => setFilters((f) => ({ ...f, thing })),
     setDate: (date) => setFilters((f) => ({ ...f, date })),
     setQuery: (q) => setFilters((f) => ({ ...f, q })),
-    clearFilters: () => setFilters({ personId: null, date: "any", q: "" }),
+    clearFilters: () => setFilters({ personId: null, placeId: null, thing: null, date: "any", q: "" }),
   };
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

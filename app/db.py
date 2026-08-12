@@ -75,6 +75,16 @@ class Photo(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    # --- Photo enrichment (vision + EXIF) ---
+    # GPS from EXIF (before the image is re-encoded), if present.
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # JSON array of COCO object labels detected by the SSD classifier.
+    tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Places365 scene label + softmax confidence (fallback when no GPS).
+    scene: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scene_conf: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # Relationship drives unit-of-work insert ordering (parent before child).
     owner: Mapped["User"] = relationship(back_populates="photos")
     faces: Mapped[list["Face"]] = relationship(back_populates="photo")
@@ -185,6 +195,18 @@ def init_db() -> None:
                 # Pre-multi-tenancy rows have no owner; this is dev-only data.
                 conn.execute(text(f"TRUNCATE {table} CASCADE"))
                 logger.info("Migrated %s: added tenant_id column", table)
+
+        # Photo enrichment columns (vision tags, scene, EXIF GPS) — additive.
+        for col, ddl in (
+            ("lat", "DOUBLE PRECISION"),
+            ("lng", "DOUBLE PRECISION"),
+            ("tags", "TEXT"),
+            ("scene", "TEXT"),
+            ("scene_conf", "DOUBLE PRECISION"),
+        ):
+            if not _column_exists(conn, "photos", col):
+                conn.execute(text(f"ALTER TABLE photos ADD COLUMN {col} {ddl}"))
+                logger.info("Migrated photos: added %s column", col)
 
         has_index = conn.execute(
             text("SELECT 1 FROM pg_indexes WHERE indexname = 'ix_faces_vec_hnsw'")

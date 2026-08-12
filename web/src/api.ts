@@ -49,6 +49,11 @@ export interface LibraryPhoto {
   original_name: string;
   share_url: string | null;
   faces: LibraryFace[];
+  // Enrichment (vision + EXIF): may be empty/null on older uploads.
+  lat: number | null;
+  lng: number | null;
+  tags: string[];
+  scene: string | null;
 }
 
 export interface PersonCluster {
@@ -59,9 +64,29 @@ export interface PersonCluster {
   photo_ids: string[];
 }
 
+export interface Place {
+  id: string;
+  kind: "gps" | "scene";
+  label: string;
+  sub: string;
+  lat: number | null;
+  lng: number | null;
+  count: number;
+  photo_ids: string[];
+  thumb: string | null;
+}
+
+export interface Thing {
+  label: string;
+  count: number;
+  photo_ids: string[];
+}
+
 export interface LibraryData {
   photos: LibraryPhoto[];
   people: PersonCluster[];
+  places: Place[];
+  things: Thing[];
 }
 
 export class ApiError extends Error {

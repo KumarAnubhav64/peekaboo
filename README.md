@@ -8,6 +8,8 @@ A production-grade, **100% free** face-recognition pipeline:
 |---|---|---|
 | Web framework | FastAPI + Uvicorn | free |
 | Face engine | InsightFace (SCRFD + ArcFace, 512-d) | free, MIT |
+| Object detection | SSD MobileNet V1 (COCO 80 classes, ONNX) | free, Apache-2.0 |
+| Scene classification | Places365 ResNet-18 (ONNX) | free, MIT/BSD |
 | Database | Neon Postgres + `pgvector` (HNSW index) | free tier |
 | Storage | MinIO / Cloudflare R2 (S3-compatible) or local disk | free |
 
@@ -131,6 +133,11 @@ erDiagram
         int height
         int num_faces
         timestamp uploaded_at
+        float lat "EXIF GPS (read pre-reencode)"
+        float lng
+        text tags "COCO object labels (JSON)"
+        text scene "Places365 label"
+        float scene_conf
     }
     FACES {
         uuid id PK
@@ -276,7 +283,7 @@ link — both photos should appear in the gallery (cross-photo matching works).
 | `GET` | `/api/auth/google` | Start Google SSO (redirect) |
 | `GET` | `/api/auth/google/callback` | Google OAuth callback |
 | `POST` | `/api/upload` | Multipart `file` (auth required) → `{photo, faces[]}` |
-| `GET` | `/api/library` | Signed-in user's library: photos + people clusters |
+| `GET` | `/api/library` | Signed-in user's library: photos + people + places + things |
 | `GET` | `/api/claim-info/{token}` | Face id + crop URL for the claim SPA |
 | `POST` | `/api/claim/{token}` | Multipart selfie `file` → `{status, photos[]}` |
 | `GET` | `/api/photo/{photo_id}?token=` | Token-gated original photo |
@@ -304,16 +311,27 @@ flowchart LR
 * **People** — faces are clustered server-side (greedy similarity) into a
   horizontal avatar strip and a full People view; clicking a person filters
   the library to photos containing them.
-* **Search & filters** — ⌘K command palette (people, dates, file names) and a
-  filter popover (date ranges + people) rendered as removable badges.
+* **Search & filters** — ⌘K command palette (people, places, objects, dates)
+  and a filter popover (date ranges + people + places + things) rendered as
+  removable badges.
+* **Places** — photos group by GPS coordinates read from EXIF (clustered
+  within ~2 km); photos without GPS get a Places365 scene label instead.
+* **Things** — SSD MobileNet tags every photo with its COCO objects (animals,
+  vehicles, furniture…); the Things view has an Animals section.
 * **Lightbox** — fullscreen dialog with metadata (date, size, people-in-photo
-  chips that filter, copy claim link, download).
+  chips that filter, scene, object tags, GPS coords, copy claim link, download).
 * **Uploads** — drag-and-drop dialog with per-batch progress and a
   non-blocking "Analyzing…" banner while faces are detected.
-* Places / Things / Albums / Trash are nav views with designed empty states
-  until their backend features ship.
+* Albums / Trash are nav views with designed empty states until those
+  features ship.
 
-Stack: **Tailwind CSS v4 + shadcn/ui-style primitives + lucide-react**
+Enrichment is **optional and non-blocking**: if an ONNX model is missing or
+inference fails, uploads still succeed (classification simply stays off).
+Photos uploaded before enrichment existed can be backfilled with
+`scripts/backfill_enrichment.py` (GPS can't be recovered — the re-encoded
+image has no EXIF — but tags and scenes can).
+
+Stack: **Tailwind CSS v4 + shadcn/ui-style primitives + Phosphor icons**
 (hand-scaffolded — the shadcn registry was unreachable in this environment,
 so the components live in `web/src/components/ui/` and `components.json` is
 ready for future `npx shadcn add`).
@@ -325,6 +343,8 @@ Peekaboo/
 ├── app/                  # FastAPI backend
 │   ├── main.py          # API routes + React SPA serving
 │   ├── pipeline.py      # upload → embed → token; claim → verify → search
+│   ├── vision.py        # SSD MobileNet objects + Places365 scene (ONNX, lazy)
+│   ├── library.py       # people clustering + places/things grouping
 │   ├── face_engine.py   # InsightFace wrapper (lazy singleton)
 │   ├── auth.py          # bcrypt, JWT sessions, Google SSO, rate limiter
 │   ├── db.py            # SQLAlchemy + pgvector models, HNSW index
@@ -339,6 +359,7 @@ Peekaboo/
 │   └── dist/            # build output (served by FastAPI)
 ├── scripts/download_samples.py
 ├── scripts/live_flow_test.py
+├── scripts/backfill_enrichment.py  # re-classify photos uploaded pre-enrichment
 ├── tests/
 ├── DEPLOYMENT.md        # laptop → free-cloud migration plan
 └── TRADEOFFS.md         # every engineering decision + the cost accepted

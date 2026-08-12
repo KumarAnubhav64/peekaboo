@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDots, Copy, DownloadSimple, LinkSimple, Users } from "@phosphor-icons/react";
+import {
+  CalendarDots,
+  Copy,
+  DownloadSimple,
+  LinkSimple,
+  MapPin,
+  Mountains,
+  Shapes,
+  Users,
+} from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,6 +117,42 @@ export function Lightbox({ photo, onClose, people, peopleByFace, onCopy }: Props
                   );
                 })}
               </div>
+            )}
+
+            <Separator className="my-4" />
+
+            {/* Enrichment: scene, objects, location */}
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Detected
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {photo.scene && (
+                <Badge variant="secondary" className="gap-1">
+                  <Mountains className="h-3 w-3" />
+                  {photo.scene}
+                </Badge>
+              )}
+              {photo.lat != null && photo.lng != null && (
+                <Badge variant="secondary" className="gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {photo.lat.toFixed(4)}, {photo.lng.toFixed(4)}
+                </Badge>
+              )}
+            </div>
+            {photo.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {photo.tags.map((t) => (
+                  <Badge key={t} variant="outline" className="gap-1 text-[11px] capitalize">
+                    <Shapes className="h-3 w-3" />
+                    {t}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {!photo.scene && photo.lat == null && photo.tags.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                This photo predates enrichment — upload it again to get scene, object and location data.
+              </p>
             )}
 
             <Separator className="my-4" />

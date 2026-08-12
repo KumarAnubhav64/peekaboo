@@ -22,6 +22,109 @@ from app.db import Face, Photo, SessionLocal
 
 logger = logging.getLogger("peekaboo.library")
 
+# GPS clustering: photos within ~0.02° (~2 km) of a cluster centroid join it.
+PLACE_RADIUS_DEG = 0.02
+
+
+def _thumb(photo: Photo, by_photo: dict[str, Face]) -> str | None:
+    f = by_photo.get(photo.id)
+    return f"/api/crop/{f.id}?token={f.token}" if f else None
+
+
+def _group_places(photos: list[Photo], by_photo: dict[str, Face]) -> list[dict]:
+    """Group photos into 'places': GPS clusters for photos with coordinates,
+    scene-label groups for the rest."""
+    places: list[dict] = []
+
+    # 1. GPS clusters (greedy centroid join within ~2 km).
+    #    Note: joins against the RUNNING centroid with a Manhattan (deg)
+    #    distance — fine for a hobby library, but the centroid drifts as
+    #    photos join, so a far photo can merge into a big cluster or a revisit
+    #    can split into two. Acceptable at this scale; a fixed-anchor +
+    #    haversine pass is the upgrade path if clustering quality matters.
+    gps_photos = [p for p in photos if p.lat is not None and p.lng is not None]
+    clusters: list[dict] = []  # {lat, lng, ids, n}
+    for p in gps_photos:
+        placed = False
+        for c in clusters:
+            if abs(c["lat"] - p.lat) < PLACE_RADIUS_DEG and abs(c["lng"] - p.lng) < PLACE_RADIUS_DEG:
+                n = c["n"]
+                c["lat"] = (c["lat"] * n + p.lat) / (n + 1)
+                c["lng"] = (c["lng"] * n + p.lng) / (n + 1)
+                c["n"] += 1
+                c["ids"].append(p.id)
+                placed = True
+                break
+        if not placed:
+            clusters.append({"lat": p.lat, "lng": p.lng, "n": 1, "ids": [p.id]})
+
+    for i, c in enumerate(sorted(clusters, key=lambda x: -x["n"])):
+        rep = next((p for p in gps_photos if p.id == c["ids"][0]), None)
+        places.append(
+            {
+                "id": f"gps-{i}",
+                "kind": "gps",
+                "label": f"Place {i + 1}",
+                "sub": f"{c['lat']:.4f}, {c['lng']:.4f}",
+                "lat": round(c["lat"], 6),
+                "lng": round(c["lng"], 6),
+                "count": c["n"],
+                "photo_ids": c["ids"],
+                "thumb": _thumb(rep, by_photo) if rep else None,
+            }
+        )
+
+    # 2. Scene groups for photos without GPS (most phone-less uploads).
+    scene_groups: dict[str, list[Photo]] = {}
+    for p in photos:
+        if p.lat is None and p.scene:
+            scene_groups.setdefault(p.scene, []).append(p)
+    for scene, sps in sorted(scene_groups.items(), key=lambda kv: -len(kv[1])):
+        rep = sps[0]
+        places.append(
+            {
+                "id": f"scene-{scene.lower().replace(' ', '-')}",
+                "kind": "scene",
+                "label": scene,
+                "sub": "Detected scene",
+                "lat": None,
+                "lng": None,
+                "count": len(sps),
+                "photo_ids": [p.id for p in sps],
+                "thumb": _thumb(rep, by_photo),
+            }
+        )
+    return places
+
+
+# 'person' is COCO class 1, but the People view already clusters people —
+# listing it under "Things" would be redundant, so it's excluded here.
+EXCLUDED_THINGS = {"person"}
+
+
+def _aggregate_things(photos: list[Photo]) -> list[dict]:
+    """COCO tags across the library -> [{label, count, photo_ids}], biggest first.
+
+    ``person`` is deliberately excluded (the People view owns that class);
+    search-by-tag still matches it since photo.tags keeps it.
+    """
+    by_label: dict[str, list[str]] = {}
+    for p in photos:
+        if not p.tags:
+            continue
+        try:
+            tags = json.loads(p.tags)
+        except Exception:
+            continue
+        for t in tags:
+            if t in EXCLUDED_THINGS:
+                continue
+            by_label.setdefault(t, []).append(p.id)
+    return [
+        {"label": label, "count": len(ids), "photo_ids": ids}
+        for label, ids in sorted(by_label.items(), key=lambda kv: -len(kv[1]))
+    ]
+
 
 def _face_area(face: Face) -> float:
     try:
@@ -94,6 +197,11 @@ def get_library(tenant_id: str) -> dict:
                 "uploaded_at": p.uploaded_at.isoformat() if p.uploaded_at else None,
                 "original_name": p.original_name,
                 "share_url": f"/claim/{by_photo[p.id].token}" if p.id in by_photo else None,
+                # Enrichment from vision + EXIF.
+                "lat": p.lat,
+                "lng": p.lng,
+                "tags": json.loads(p.tags) if p.tags else [],
+                "scene": p.scene,
                 # Detected people in this photo. Tokens stay URL-only (they're
                 # embedded in crop_url/share_url) — never returned as raw fields.
                 "faces": [
@@ -107,6 +215,9 @@ def get_library(tenant_id: str) -> dict:
             }
             for p in photos
         ]
+
+        places = _group_places(photos, by_photo)
+        things = _aggregate_things(photos)
 
         # People strip: one cluster per detected person. The representative
         # face's own token unlocks its crop.
@@ -123,4 +234,4 @@ def get_library(tenant_id: str) -> dict:
                 }
             )
 
-        return {"photos": photo_list, "people": people}
+        return {"photos": photo_list, "people": people, "places": places, "things": things}

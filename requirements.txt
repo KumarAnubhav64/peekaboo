@@ -18,6 +18,7 @@ pgvector>=0.3.0
 numpy>=1.26
 opencv-python-headless>=4.10
 insightface>=0.7.3
+onnx>=1.16          # insightface's arcface_onnx imports onnx at import time
 onnxruntime>=1.18
 Pillow>=10.0
 

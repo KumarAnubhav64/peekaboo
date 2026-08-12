@@ -4,8 +4,12 @@
 # runtime data (photos, crops, selfies, sqlite)
 data/
 
-# downloaded models
-models/
+# downloaded models (heavy, auto-downloaded) — except the two small ONNX
+# classifiers + labels that ship with the repo (not re-downloadable w/o torch)
+models/*
+!models/ssd_mobilenet_v1.onnx
+!models/places365_resnet18.onnx
+!models/categories_places365.txt
 
 # python
 .venv/

@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { MagnifyingGlass, SlidersHorizontal, Users, X, XCircle } from "@phosphor-icons/react";
+import {
+  MagnifyingGlass,
+  MapPin,
+  Shapes,
+  SlidersHorizontal,
+  Users,
+  X,
+  XCircle,
+} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,16 +32,24 @@ const DATE_OPTIONS: { value: DateFilter; label: string }[] = [
 ];
 
 export function TopBar() {
-  const { data, filters, setPerson, setDate, setQuery, clearFilters, analyzing, queue } =
+  const { data, filters, setPerson, setPlace, setThing, setDate, setQuery, clearFilters, analyzing, queue } =
     useLibrary();
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
   const people = useMemo(() => sortedPeople(data), [data]);
+  const places = useMemo(() => data?.places ?? [], [data]);
+  const things = useMemo(() => data?.things ?? [], [data]);
 
   const dateLabel = DATE_OPTIONS.find((d) => d.value === filters.date)?.label;
   const activePerson = people.find((p) => p.id === filters.personId);
-  const hasFilters = filters.personId !== null || filters.date !== "any" || !!filters.q;
+  const activePlace = places.find((p) => p.id === filters.placeId);
+  const hasFilters =
+    filters.personId !== null ||
+    filters.placeId !== null ||
+    filters.thing !== null ||
+    filters.date !== "any" ||
+    !!filters.q;
 
   return (
     <header className="border-b bg-card/70 backdrop-blur sticky top-0 z-30">
@@ -106,6 +122,56 @@ export function TopBar() {
                 </button>
               ))}
             </div>
+
+            <Separator className="mb-3" />
+
+            <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <MapPin className="h-3 w-3" /> Places
+            </p>
+            <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+              {places.length === 0 && (
+                <p className="text-xs text-muted-foreground">No places detected yet.</p>
+              )}
+              {places.map((pl) => (
+                <button
+                  key={pl.id}
+                  onClick={() => setPlace(filters.placeId === pl.id ? null : pl.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    filters.placeId === pl.id
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "hover:bg-accent",
+                  )}
+                >
+                  {pl.label} · {pl.count}
+                </button>
+              ))}
+            </div>
+
+            <Separator className="mb-3" />
+
+            <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Shapes className="h-3 w-3" /> Things
+            </p>
+            <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+              {things.length === 0 && (
+                <p className="text-xs text-muted-foreground">No objects detected yet.</p>
+              )}
+              {things.map((t) => (
+                <button
+                  key={t.label}
+                  onClick={() => setThing(filters.thing === t.label ? null : t.label)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors",
+                    filters.thing === t.label
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "hover:bg-accent",
+                  )}
+                >
+                  {t.label} · {t.count}
+                </button>
+              ))}
+            </div>
           </PopoverContent>
         </Popover>
 
@@ -136,6 +202,24 @@ export function TopBar() {
             <Badge variant="secondary" className="gap-1">
               {personLabel(people.indexOf(activePerson))}
               <button onClick={() => setPerson(null)} aria-label="Remove person filter">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {activePlace && (
+            <Badge variant="secondary" className="gap-1">
+              <MapPin className="h-3 w-3" />
+              {activePlace.label}
+              <button onClick={() => setPlace(null)} aria-label="Remove place filter">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.thing && (
+            <Badge variant="secondary" className="gap-1 capitalize">
+              <Shapes className="h-3 w-3" />
+              {filters.thing}
+              <button onClick={() => setThing(null)} aria-label="Remove object filter">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -187,6 +271,43 @@ export function TopBar() {
             ))}
             {people.length === 0 && (
               <CommandItem disabled>No people detected yet — upload a photo!</CommandItem>
+            )}
+          </CommandGroup>
+          <CommandGroup heading="Places &amp; things">
+            {places.map((pl) => (
+              <CommandItem
+                key={pl.id}
+                value={`${pl.label} ${pl.sub}`}
+                onSelect={() => {
+                  setPlace(pl.id);
+                  setSearchOpen(false);
+                }}
+              >
+                <MapPin className="h-4 w-4" />
+                {pl.label}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {pl.count} photo{pl.count === 1 ? "" : "s"}
+                </span>
+              </CommandItem>
+            ))}
+            {things.map((t) => (
+              <CommandItem
+                key={t.label}
+                value={t.label}
+                onSelect={() => {
+                  setThing(t.label);
+                  setSearchOpen(false);
+                }}
+              >
+                <Shapes className="h-4 w-4" />
+                <span className="capitalize">{t.label}</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {t.count} photo{t.count === 1 ? "" : "s"}
+                </span>
+              </CommandItem>
+            ))}
+            {places.length === 0 && things.length === 0 && (
+              <CommandItem disabled>No places or objects detected yet</CommandItem>
             )}
           </CommandGroup>
         </CommandList>

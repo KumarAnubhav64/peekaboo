@@ -6,6 +6,7 @@ CLI scripts, or tests.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import secrets
 import uuid
@@ -16,6 +17,7 @@ import numpy as np
 from PIL import Image
 from sqlalchemy import select
 
+from app import vision
 from app.config import settings
 from app.db import Face, Photo, SessionLocal, init_db
 from app.face_engine import DetectedFace, get_engine
@@ -99,6 +101,37 @@ def decode_image(data: bytes) -> tuple[np.ndarray, int, int]:
     return bgr, width, height
 
 
+def extract_gps(data: bytes) -> tuple[float, float] | None:
+    """Read GPS lat/lng from EXIF, if the photo has it.
+
+    Must be called BEFORE re-encoding: our JPEG encode strips all EXIF, so
+    coordinates only survive if read from the original bytes.
+    """
+    try:
+        from PIL.ExifTags import GPSTAGS  # noqa: F401 - import check
+
+        img = Image.open(io.BytesIO(data))
+        gps_ifd = img.getexif().get_ifd(0x8825)  # GPSInfo
+        if not gps_ifd:
+            return None
+
+        def ratio(v):
+            # Spec is (num, den) rationals, but a few cameras write floats.
+            if isinstance(v, tuple) and len(v) == 2 and v[1]:
+                return float(v[0]) / float(v[1])
+            return float(v)
+
+        lat = ratio(gps_ifd[2])
+        lng = ratio(gps_ifd[4])
+        if str(gps_ifd[1]).upper() == "S":
+            lat = -lat
+        if str(gps_ifd[3]).upper() == "W":
+            lng = -lng
+        return lat, lng
+    except Exception:
+        return None
+
+
 def encode_jpeg(img_bgr: np.ndarray, quality: int = 90) -> bytes:
     ok, buf = cv2.imencode(".jpg", img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
     if not ok:
@@ -141,6 +174,12 @@ def process_upload(data: bytes, original_name: str, tenant_id: str) -> UploadRes
     if not faces:
         raise PipelineError("No face detected in this image.")
 
+    # Enrichment: GPS must be read from the ORIGINAL bytes (our re-encode
+    # strips EXIF); object/scene classification runs on the decoded frame.
+    gps = extract_gps(data)
+    tags = vision.detect_objects(img_bgr)
+    scene = vision.classify_scene(img_bgr)
+
     photo_id = str(uuid.uuid4())
     photo_key = f"photos/{photo_id}.jpg"
     saved_keys: list[str] = []
@@ -158,6 +197,11 @@ def process_upload(data: bytes, original_name: str, tenant_id: str) -> UploadRes
                     width=width,
                     height=height,
                     num_faces=len(faces),
+                    lat=gps[0] if gps else None,
+                    lng=gps[1] if gps else None,
+                    tags=json.dumps(tags) if tags else None,
+                    scene=scene[0] if scene else None,
+                    scene_conf=scene[1] if scene else None,
                 )
             )
 

@@ -6,6 +6,21 @@ export function personLabel(index: number): string {
   return `Person ${index + 1}`;
 }
 
+/** COCO animal tags — drives the "Animals" section of the Things view.
+ *  MUST mirror app/vision.py's ANIMAL_LABELS (keep both in sync). */
+export const ANIMAL_LABELS = new Set([
+  "bird",
+  "cat",
+  "dog",
+  "horse",
+  "sheep",
+  "cow",
+  "elephant",
+  "bear",
+  "zebra",
+  "giraffe",
+]);
+
 /** Sorted people: biggest clusters first (stable). */
 export function sortedPeople(data: LibraryData | null) {
   if (!data) return [];
@@ -17,8 +32,32 @@ export function photoInPerson(photo: LibraryPhoto, personId: string, data: Libra
   return cluster ? cluster.photo_ids.includes(photo.id) : false;
 }
 
+export function photoInPlace(photo: LibraryPhoto, placeId: string, data: LibraryData): boolean {
+  const place = data.places.find((p) => p.id === placeId);
+  return place ? place.photo_ids.includes(photo.id) : false;
+}
+
+/** Searchable text for a photo: name, dates, detected tags, scene, places. */
+export function photoSearchText(photo: LibraryPhoto, data: LibraryData): string {
+  const placeLabels = data.places
+    .filter((pl) => pl.photo_ids.includes(photo.id))
+    .map((pl) => pl.label);
+  return [
+    photo.original_name,
+    photo.uploaded_at ? formatDay(photo.uploaded_at) : "",
+    photo.uploaded_at ? formatMonth(photo.uploaded_at) : "",
+    ...(photo.tags ?? []),
+    photo.scene ?? "",
+    ...placeLabels,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
 export function matchesFilters(photo: LibraryPhoto, data: LibraryData, f: Filters): boolean {
   if (f.personId && !photoInPerson(photo, f.personId, data)) return false;
+  if (f.placeId && !photoInPlace(photo, f.placeId, data)) return false;
+  if (f.thing && !(photo.tags ?? []).includes(f.thing)) return false;
 
   if (f.date !== "any") {
     const t = photo.uploaded_at ? new Date(photo.uploaded_at).getTime() : Date.now();
@@ -32,14 +71,7 @@ export function matchesFilters(photo: LibraryPhoto, data: LibraryData, f: Filter
 
   if (f.q.trim()) {
     const q = f.q.trim().toLowerCase();
-    const hay = [
-      photo.original_name,
-      photo.uploaded_at ? formatDay(photo.uploaded_at) : "",
-      photo.uploaded_at ? formatMonth(photo.uploaded_at) : "",
-    ]
-      .join(" ")
-      .toLowerCase();
-    if (!hay.includes(q)) return false;
+    if (!photoSearchText(photo, data).includes(q)) return false;
   }
   return true;
 }
