@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import App from "./App";
 import Gate from "./pages/Gate";
+import RequireAuth from "./RequireAuth";
 import LibraryPage from "./pages/LibraryPage";
 import PeoplePage from "./pages/PeoplePage";
 import ComingSoonPage from "./pages/ComingSoonPage";
@@ -15,17 +15,23 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route element={<App />}>
-            <Route path="/" element={<Gate />} />
+          {/* signed-out landing: fullscreen auth page */}
+          <Route path="/" element={<Gate />} />
+
+          {/* public claim page — no shell */}
+          <Route path="/claim/:token" element={<ClaimPage />} />
+
+          {/* signed-in library shell */}
+          <Route element={<RequireAuth />}>
             <Route path="/photos" element={<LibraryPage />} />
             <Route path="/people" element={<PeoplePage />} />
             <Route path="/places" element={<ComingSoonPage slug="places" />} />
             <Route path="/things" element={<ComingSoonPage slug="things" />} />
             <Route path="/albums" element={<ComingSoonPage slug="albums" />} />
             <Route path="/trash" element={<ComingSoonPage slug="trash" />} />
-            <Route path="/claim/:token" element={<ClaimPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
