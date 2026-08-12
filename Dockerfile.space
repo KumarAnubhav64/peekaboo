@@ -1,0 +1,63 @@
+# syntax=docker/dockerfile:1
+# ---------------------------------------------------------------------------
+# Peekaboo — Hugging Face Spaces (Docker SDK) image.
+#
+# Differences from the compose Dockerfile:
+#   * runs rootless (HF runs containers as UID 1000)
+#   * ML models are BAKED IN (HF free tier has no persistent disk, so baking
+#     avoids a ~370 MB re-download on every cold start)
+#   * no volume mounting — the app is stateless; all data lives in Neon
+#     (Postgres) + Neon S3 object storage via env vars.
+# Deployed via scripts/deploy_space.sh — see DEPLOYMENT.md.
+# ---------------------------------------------------------------------------
+
+# Stage 1 — build the React SPA (web/dist)
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# Stage 2 — Python runtime
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000 \
+    HOME=/home/user
+
+WORKDIR /app
+
+# OpenCV / onnxruntime / insightface system libs + curl for the healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY scripts ./scripts
+COPY --from=web /web/dist ./web/dist
+
+# Baked ML models (no download at cold start):
+#   models/models/buffalo_l/*.onnx  — InsightFace pack (engine root=<MODEL_DIR>)
+#   models/*.onnx + labels          — SSD objects + Places365 scene classifiers
+COPY models/models/buffalo_l ./models/models/buffalo_l
+COPY models/ssd_mobilenet_v1.onnx models/places365_resnet18.onnx models/categories_places365.txt ./models/
+
+# HF runs containers as UID 1000 — create a matching user and own /app.
+RUN useradd --create-home --uid 1000 --shell /bin/bash user \
+    && chown -R user:user /app
+
+USER user
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

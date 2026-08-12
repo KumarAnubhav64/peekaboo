@@ -56,30 +56,89 @@ Free-tier hosts give you almost nothing, so the deployment plan is a series of
 | DB sleeping (Neon: 5 min idle) | Acceptable — cold start ~350 ms; keeps 100 CU-hrs/month intact |
 | CPU-seconds | Downscale aggressively; consider an image queue + worker later |
 
-### Candidate free hosts (researched 2026)
+## Phase 2 (ready to deploy) — Hugging Face Spaces + Vercel + Neon
+
+**Architecture:** stateless backend on HF Spaces, frontend on Vercel, all data
+in your existing Neon (Postgres + S3-compatible object storage). HF's free tier
+has **no persistent disk**, so models are baked into the image and every byte of
+user data lives in Neon — the app container is disposable.
 
 ```mermaid
 flowchart LR
-    subgraph Options[Free tier hosts]
-        HFS[Hugging Face Spaces<br/>Docker CPU · up to 16 GB RAM<br/>sleeps after idle · ephemeral disk]
-        R[R<sub>ender</sub> web service<br/>512 MB RAM · spins down 15 min<br/>free Postgres expires in 30 days]
-        PA[PythonAnywhere<br/>too small for ML deps]
-    end
-    HFS -->|best fit| WIN[Peekaboo on HF Spaces<br/>+ Neon for DB + volume for files]
+    BROWSER[Browser] -->|vercel.app<br/>same-origin /api proxy| VERCEL[Vercel — React SPA<br/>vercel.json rewrites]
+    VERCEL -->|/api/:path* proxied| SPACE[HF Space — FastAPI<br/>Docker SDK · models baked]
+    SPACE --> NEON_DB[(Neon Postgres<br/>pgvector + HNSW)]
+    SPACE --> NEON_S3[(Neon S3 object storage<br/>photos · crops · selfies)]
 ```
 
-**Recommendation: Hugging Face Spaces (Docker SDK)** — by far the most RAM for
-free; pair it with Neon (already the DB) and a persistent volume or object
-storage for uploaded files.
+Same-origin from the browser's perspective: Vercel rewrites proxy `/api/*` and
+`/health` to the Space, so the httpOnly session cookie (SameSite=Lax) just
+works — no CORS, no cross-site cookie gymnastics.
 
-### Migration checklist
+### Deploy the backend (one command)
 
-- [ ] Add `Dockerfile` (install `requirements.txt`, build `web/` with `npm ci && npm run build`, copy `web/dist` + `app/`, bundle or pre-download models).
-- [ ] Add `DATABASE_URL` (Neon pooled string), `S3_*` (R2), `PUBLIC_BASE_URL` to Space secrets.
-- [ ] Set `STORAGE_BACKEND=s3` + R2 endpoint/keys (already supported — bucket auto-creates).
-- [ ] Set `FACE_MODEL=buffalo_s`, `DET_SIZE=512`, `MAX_IMAGE_SIDE=1024`.
-- [ ] Add a keep-alive ping (every 4 min) if always-on matters.
-- [ ] Put the app behind a reverse proxy (HTTPS) — Spaces provides it.
+```bash
+HF_TOKEN=hf_xxxx ./scripts/deploy_space.sh your-user/peekaboo
+```
+
+The script creates the Space (sdk=docker), assembles the repo (multi-stage
+Dockerfile builds the SPA and bakes the ML models so cold starts don't re-download
+370 MB), and pushes — HF builds the image. Then set the **secrets** in
+Space → Settings → Variables and secrets:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Neon pooled string (already in your `.env`) |
+| `STORAGE_BACKEND` | `s3` |
+| `AWS_ENDPOINT_URL_S3` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` / `S3_BUCKET` | Neon S3 (already in your `.env`) |
+| `JWT_SECRET` | `openssl rand -hex 32` |
+| `COOKIE_SECURE` | `true` |
+| `PUBLIC_BASE_URL` | your Vercel domain (absolute links) |
+| `FACE_MODEL` / `DET_SIZE` | `buffalo_l` / `640` — drop to `buffalo_s`/`512` if the build times out |
+
+Free-tier notes: **2 vCPU / 16 GB RAM**, sleeps after 48 h idle, first request
+after waking takes up to ~2 min. Don't add a keep-alive — waking is free.
+
+### Deploy the frontend (Vercel)
+
+```bash
+cd web
+vercel          # or: npx vercel --prod
+```
+
+1. Edit `web/vercel.json` and replace `<YOUR-USERNAME>-peekaboo.hf.space` with
+   the real Space URL.
+2. Vercel auto-detects Vite (build `npm run build`, output `dist`).
+3. `vercel.json` rewrites `/api/:path*` and `/health` to the Space and falls
+   back every other path to `index.html` (client routes like `/photos` and
+   `/claim/<token>` work on refresh).
+4. Set `PUBLIC_BASE_URL=https://<your-project>.vercel.app` on the Space so
+   absolute links are correct.
+
+**Vercel Hobby free tier:** 100 GB bandwidth / month — fine until the photo
+library gets heavy; images are the main cost driver.
+
+### Why HF + Vercel + Neon
+
+| Constraint | Choice | Reason |
+|---|---|---|
+| Backend RAM | HF Spaces (16 GB free) | by far the most RAM of any free host; models + inference fit |
+| Storage | Neon S3 + Postgres | free tier, already configured, survives Space restarts |
+| Frontend | Vercel | free, CDN-fast SPA, rewrite proxy keeps auth same-origin |
+| Cold starts | models baked in | first request after sleep is a container boot, not a download |
+
+> Alternative single-host: the [SELFHOST.md](SELFHOST.md) Docker Compose suite
+> on your own hardware (no cloud at all).
+
+### Migrating the existing local library
+
+After the Space is live, copy your local data up once:
+
+```bash
+# from the laptop: upload local data/ into Neon S3 (see SELFHOST.md)
+STORAGE_BACKEND=s3 .venv/bin/python scripts/migrate_local_to_s3.py
+# or mirror between S3 stores with mc
+```
 
 ---
 
@@ -87,9 +146,10 @@ storage for uploaded files.
 
 | Service | Free tier | Annual cost |
 |---|---|---|
-| Hugging Face Spaces | CPU Docker, sleeps when idle | $0 |
+| Hugging Face Spaces | CPU Docker (2 vCPU / 16 GB), sleeps when idle | $0 |
 | Neon Postgres | 0.5 GB, pgvector + HNSW, ~100 CU-hrs/mo | $0 |
-| Cloudflare R2 (photos) | 10 GB storage + **zero egress** | $0 |
+| Neon S3 object storage | free tier | $0 |
+| Vercel | Hobby — 100 GB bandwidth / mo | $0 |
 | **Total** | | **$0 / year** |
 
 ### Switching storage backends (already implemented)
@@ -99,17 +159,14 @@ storage for uploaded files.
 STORAGE_BACKEND=s3 S3_ENDPOINT_URL=http://localhost:9000 \
   S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin S3_REGION=us-east-1
 
-# Production with Cloudflare R2
+# Neon object storage (this project)
 STORAGE_BACKEND=s3 \
-  S3_ENDPOINT_URL=https://<ACCOUNT_ID>.r2.cloudflarestorage.com \
-  S3_ACCESS_KEY=<R2_ACCESS_KEY> S3_SECRET_KEY=<R2_SECRET> S3_REGION=auto
+  AWS_ENDPOINT_URL_S3=https://<project>.storage.<region>.aws.neon.tech \
+  AWS_ACCESS_KEY_ID=<key> AWS_SECRET_ACCESS_KEY=<secret> AWS_REGION=us-east-2 \
+  S3_BUCKET=pekaboo
 ```
 
 Both use boto3 + the S3 API; the bucket auto-creates on first use.
-
-> Neon's free tier sleeps after 5 min idle (wakes in ~350 ms). Supabase was
-> considered but has a 1-week inactivity pause on free; Neon's resume is much
-> friendlier for an app used sporadically.
 
 ---
 
