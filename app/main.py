@@ -43,6 +43,11 @@ WEB_DIST = BASE_DIR.parent / "web" / "dist"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    if settings.jwt_secret == "dev-only-secret-change-me-in-production":
+        logger.warning(
+            "JWT_SECRET is the dev default. Generate a real secret before deploying: "
+            "python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
     pipeline.init_pipeline()
     yield
 
@@ -85,8 +90,12 @@ class LoginBody(BaseModel):
 
 @app.post("/api/auth/signup")
 def api_signup(body: SignupBody, request: Request):
-    if not auth.signup_limiter.allow(request.client.host if request.client else "unknown"):
+    if not auth.signup_limiter.allow(auth.client_ip(request)):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again shortly.")
+    # bcrypt only considers the first 72 bytes — reject longer passwords up
+    # front instead of silently treating two different passwords as equal.
+    if len(body.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="Password must be at most 72 bytes.")
     email = body.email.lower()
     with SessionLocal() as session:
         if session.scalar(select(User).where(User.email == email)) is not None:
@@ -107,16 +116,24 @@ def api_signup(body: SignupBody, request: Request):
 
 @app.post("/api/auth/login")
 def api_login(body: LoginBody, request: Request):
-    if not auth.login_limiter.allow(request.client.host if request.client else "unknown"):
+    if not auth.login_limiter.allow(auth.client_ip(request)):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again shortly.")
     with SessionLocal() as session:
         user = session.scalar(select(User).where(User.email == body.email.lower()))
-    if user is None or not auth.verify_password(body.password, user.password_hash):
-        # Same work as a real attempt, to keep the timing profile uniform.
+    # Always run bcrypt (against a dummy hash for unknown emails) so the
+    # response time doesn't reveal which emails are registered.
+    ok = auth.verify_password(body.password, user.password_hash if user else auth.DUMMY_HASH)
+    if user is None or not ok:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     resp = JSONResponse(content=auth.user_dict(user))
     auth.set_session_cookie(resp, user.id)
     return resp
+
+
+@app.get("/api/auth/config")
+def api_auth_config():
+    """Public capabilities the UI needs (e.g. whether to show Google SSO)."""
+    return {"google_sso": auth.google_sso_enabled()}
 
 
 @app.post("/api/auth/logout")

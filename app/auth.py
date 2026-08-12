@@ -40,6 +40,11 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
+# Burned on unknown-email logins so the response time doesn't reveal
+# whether an email is registered (bcrypt cost is the same either way).
+DUMMY_HASH = bcrypt.hashpw(b"peekaboo-dummy-password", bcrypt.gensalt()).decode("utf-8")
+
+
 def verify_password(password: str, password_hash: str | None) -> bool:
     if not password_hash:
         return False
@@ -129,6 +134,21 @@ class RateLimiter:
 
 login_limiter = RateLimiter(max_hits=10, window_seconds=60)
 signup_limiter = RateLimiter(max_hits=5, window_seconds=60)
+
+
+def client_ip(request: Request) -> str:
+    """Best-effort client IP for rate limiting.
+
+    Behind a reverse proxy (production), ``request.client.host`` is the proxy's
+    IP for everyone, which would put all users in one rate-limit bucket. We
+    trust the first X-Forwarded-For hop only when running behind a proxy
+    (signalled by PUBLIC_BASE_URL being set).
+    """
+    if settings.public_base_url:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 # ---------------------------------------------------------------------------

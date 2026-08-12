@@ -1,11 +1,20 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, googleSignIn, useAuth } from "../auth";
+import { getJson } from "../api";
 
 type Mode = "login" | "signup";
 
 export default function AuthPage() {
   const { login, signup } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
+  const [googleSso, setGoogleSso] = useState(false);
+
+  // Only show the Google button when the server has SSO configured.
+  useEffect(() => {
+    getJson<{ google_sso: boolean }>("/api/auth/config")
+      .then((cfg) => setGoogleSso(cfg.google_sso))
+      .catch(() => setGoogleSso(false));
+  }, []);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -90,13 +99,17 @@ export default function AuthPage() {
           </button>
         </form>
 
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
+        {googleSso && (
+          <>
+            <div className="auth-divider">
+              <span>or</span>
+            </div>
 
-        <button className="btn btn-ghost btn-lg google-btn" onClick={googleSignIn} type="button">
-          <span className="google-g">G</span> Continue with Google
-        </button>
+            <button className="btn btn-ghost btn-lg google-btn" onClick={googleSignIn} type="button">
+              <span className="google-g">G</span> Continue with Google
+            </button>
+          </>
+        )}
 
         {error && <div className="status error">{error}</div>}
       </div>
