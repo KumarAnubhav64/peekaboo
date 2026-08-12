@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  Camera,
   CaretRight,
   Check,
   CloudArrowUp,
+  GraduationCap,
   Heart,
   MapPin,
   MagnifyingGlass,
@@ -235,17 +237,17 @@ function HowItWorks() {
 
 const CASES = [
   {
-    emoji: "🎓",
+    icon: GraduationCap,
     title: "Built for students",
     body: "Years of camera-roll chaos — lecture slides, group trips, dorm life. Find the photo that matters before your deadline.",
   },
   {
-    emoji: "📷",
+    icon: Camera,
     title: "For photographers",
     body: "Hand-tagging 10,000 shots is nobody’s idea of a good time. Let the library organize itself; you keep the shots.",
   },
   {
-    emoji: "👨‍👩‍👧",
+    icon: Users,
     title: "For families",
     body: "Everyone has a folder of the same day. Peekaboo’s claim links mean each person can find themselves — and only themselves.",
   },
@@ -258,11 +260,16 @@ function UseCases() {
         Made for people with too many photos
       </h2>
       <div className="mt-10 grid gap-4 md:grid-cols-3">
-        {CASES.map((c) => (
-          <div key={c.title} className="rounded-2xl border bg-card p-6 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5">
-            <span className="text-3xl">{c.emoji}</span>
-            <h3 className="mt-3 text-base font-semibold">{c.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.body}</p>
+        {CASES.map(({ icon: Icon, title, body }) => (
+          <div
+            key={title}
+            className="group rounded-2xl border bg-card p-6 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5"
+          >
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+              <Icon className="h-6 w-6" />
+            </span>
+            <h3 className="mt-4 text-base font-semibold">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
           </div>
         ))}
       </div>
