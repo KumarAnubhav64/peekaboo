@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db import Face, Photo, SessionLocal
+from app.storage import storage
 
 logger = logging.getLogger("peekaboo.library")
 
@@ -163,6 +164,47 @@ def _cluster_faces(faces: list[Face], threshold: float) -> list[dict]:
         {"face_ids": ids, "photo_ids": sorted(pids), "rep": ids[0]}
         for _v, ids, pids in reps
     ]
+
+
+def delete_photos(tenant_id: str, photo_ids: list[str]) -> int:
+    """Hard-delete a tenant's photos: rows (faces cascade) + storage objects.
+
+    Returns the number of photos actually deleted. Storage cleanup is
+    best-effort and runs after the DB commit (missing objects never fail the
+    delete). Face crops and verification selfies go with their photo.
+    """
+    if not photo_ids:
+        return 0
+    keys: list[str] = []
+    with SessionLocal() as session:
+        photos = session.scalars(
+            select(Photo).where(
+                Photo.tenant_id == tenant_id, Photo.id.in_(photo_ids)
+            )
+        ).all()
+        if not photos:
+            return 0
+        for p in photos:
+            if p.storage_key:
+                keys.append(p.storage_key)
+            for f in p.faces:  # faces relationship is loaded with the photo
+                if f.crop_key:
+                    keys.append(f.crop_key)
+                if f.selfie_key:
+                    keys.append(f.selfie_key)
+                # delete explicitly — the ORM relationship has no delete
+                # cascade, so it would try (and fail) to NULL photo_id
+                session.delete(f)
+            session.delete(p)
+        session.commit()
+        deleted = len(photos)
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            logger.warning("Could not delete storage object %s: %s", key, exc)
+    logger.info("Deleted %d photo(s) for tenant %s", deleted, tenant_id[:8])
+    return deleted
 
 
 def get_library(tenant_id: str) -> dict:

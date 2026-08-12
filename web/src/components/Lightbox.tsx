@@ -8,6 +8,7 @@ import {
   MapPin,
   Mountains,
   Shapes,
+  Trash,
   Users,
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,9 +31,10 @@ interface Props {
   people: PersonCluster[]; // sorted, biggest first — index = label
   peopleByFace: Map<string, number>; // face id -> people index
   onCopy: (text: string, label: string) => void;
+  onDelete: (photo: LibraryPhoto) => void;
 }
 
-export function Lightbox({ photo, onClose, people, peopleByFace, onCopy }: Props) {
+export function Lightbox({ photo, onClose, people, peopleByFace, onCopy, onDelete }: Props) {
   const { setPerson } = useLibrary();
   const navigate = useNavigate();
   const [copied, setCopied] = useState<string | null>(null);
@@ -182,6 +184,14 @@ export function Lightbox({ photo, onClose, people, peopleByFace, onCopy }: Props
               <a href={photo.url || "#"} download={photo.original_name}>
                 <DownloadSimple /> Download
               </a>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-1.5 justify-start text-destructive hover:text-destructive"
+              onClick={() => onDelete(photo)}
+            >
+              <Trash /> Delete photo
             </Button>
 
             <div className="mt-4 flex flex-wrap gap-1.5">

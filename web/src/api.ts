@@ -149,8 +149,32 @@ export async function getJson<T>(url: string): Promise<T> {
   return data as T;
 }
 
+export async function deleteJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    ...FETCH,
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(
+      (data.detail as string) || `Request failed (${res.status})`,
+      res.status,
+      data as Record<string, unknown>,
+    );
+  }
+  return data as T;
+}
+
 export async function getLibrary(): Promise<LibraryData> {
   return getJson<LibraryData>("/api/library");
+}
+
+/** Permanently delete photos. Returns the number deleted. */
+export async function deletePhotos(ids: string[]): Promise<number> {
+  const r = await deleteJson<{ deleted: number }>("/api/photos", { ids });
+  return r.deleted;
 }
 
 /**

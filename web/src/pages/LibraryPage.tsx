@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { Camera, Check, FolderOpen, LinkSimple, Trash, X } from "@phosphor-icons/react";
+import { Camera, Check, CircleNotch, FolderOpen, LinkSimple, Trash, X } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FaceStrip } from "@/components/FaceStrip";
 import { Lightbox } from "@/components/Lightbox";
 import { EmptyState } from "@/components/EmptyState";
 import { UploadDialog } from "@/components/UploadDialog";
 import { useLibrary } from "@/lib/library-context";
 import { filterPhotos, groupByDay, sortedPeople } from "@/lib/filter";
-import { copyText, type LibraryPhoto } from "@/api";
+import { copyText, deletePhotos, type LibraryPhoto } from "@/api";
 import { cn } from "@/lib/utils";
 
 export default function LibraryPage() {
@@ -18,6 +26,9 @@ export default function LibraryPage() {
   const [lightbox, setLightbox] = useState<LibraryPhoto | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [lastAnchor, setLastAnchor] = useState<string | null>(null);
+  // ids queued for deletion (selection bar or lightbox), null = dialog closed
+  const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -86,6 +97,26 @@ export default function LibraryPage() {
     if (links.length === 0) return;
     await copyText(links.join("\n"));
     showToast(`Copied ${links.length} claim link${links.length === 1 ? "" : "s"}`);
+  };
+
+  const confirmAndDelete = (ids: string[]) => setConfirmDelete(ids);
+
+  const runDelete = async () => {
+    if (!confirmDelete || confirmDelete.length === 0) return;
+    setDeleting(true);
+    try {
+      const n = await deletePhotos(confirmDelete);
+      const toRemove = new Set(confirmDelete);
+      setSelected((s) => new Set([...s].filter((id) => !toRemove.has(id))));
+      if (lightbox && toRemove.has(lightbox.id)) setLightbox(null);
+      setConfirmDelete(null);
+      await refresh();
+      showToast(`Deleted ${n} photo${n === 1 ? "" : "s"}`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   /* --------------------------------- states ------------------------------ */
@@ -187,15 +218,23 @@ export default function LibraryPage() {
                         <Camera className="h-6 w-6 text-muted-foreground" />
                       </div>
                     )}
-                    {/* hover / selected checkbox */}
-                    <span
+                    {/* hover / selected checkbox — a REAL button: clicking it
+                        selects instead of opening the lightbox (stopPropagation)
+                        so multi-select is discoverable */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(p.id, e);
+                      }}
+                      aria-label={isSel ? `Deselect ${p.original_name}` : `Select ${p.original_name}`}
+                      aria-pressed={isSel}
                       className={cn(
-                        "absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-background/80 opacity-0 transition-opacity group-hover:opacity-100",
+                        "absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-background/80 shadow-sm transition-opacity max-md:opacity-100 md:opacity-0 md:hover:opacity-100 md:group-hover:opacity-100",
                         isSel && "border-primary bg-primary opacity-100 text-primary-foreground",
                       )}
                     >
                       {isSel && <Check className="h-3.5 w-3.5" />}
-                    </span>
+                    </button>
                     {isSel && (
                       <span className="absolute inset-0 rounded-lg ring-2 ring-inset ring-primary" />
                     )}
@@ -225,8 +264,8 @@ export default function LibraryPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-muted-foreground"
-            onClick={() => showToast("Delete is coming soon")}
+            className="gap-1.5 text-destructive hover:text-destructive"
+            onClick={() => confirmAndDelete([...selected])}
           >
             <Trash className="h-4 w-4" /> Delete
           </Button>
@@ -248,7 +287,37 @@ export default function LibraryPage() {
         people={people}
         peopleByFace={peopleByFace}
         onCopy={(_t, label) => showToast(label === "share" ? "Claim link copied!" : "Copied")}
+        onDelete={(p) => confirmAndDelete([p.id])}
       />
+
+      {/* Delete confirmation */}
+      <Dialog open={confirmDelete !== null} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {confirmDelete?.length === 1 ? "this photo" : `${confirmDelete?.length ?? 0} photos`}?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently removes the photo{confirmDelete?.length === 1 ? "" : "s"}, its face
+              crops, and claim links. This can&rsquo;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" disabled={deleting} onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={runDelete}
+              className="gap-1.5"
+            >
+              {deleting && <CircleNotch className="animate-spin" />}
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* toast */}
       {toast && (

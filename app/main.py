@@ -234,6 +234,19 @@ def api_library(user: User = Depends(auth.get_current_user)):
     return library.get_library(user.id)
 
 
+class DeletePhotosBody(BaseModel):
+    ids: list[str]
+
+
+@app.delete("/api/photos")
+def api_delete_photos(body: DeletePhotosBody, user: User = Depends(auth.get_current_user)):
+    """Hard-delete photos (and their faces + stored files) for the signed-in user."""
+    if not body.ids:
+        raise HTTPException(status_code=400, detail="No photo ids given.")
+    deleted = library.delete_photos(user.id, body.ids)
+    return {"deleted": deleted}
+
+
 @app.get("/api/claim-info/{token}")
 def api_claim_info(token: str):
     """Public data the claim SPA needs: which face a token points to."""
