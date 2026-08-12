@@ -197,6 +197,10 @@ def init_db() -> None:
                 )
             )
             logger.info("Created HNSW index on faces.vec")
+    # The pool may hold a connection that was opened BEFORE the vector type
+    # existed (its pgvector adapter failed to register). Drop all pooled
+    # connections so fresh ones reconnect with the vector type available.
+    engine.dispose()
     logger.info("Database ready (postgres + pgvector)")
 
 
