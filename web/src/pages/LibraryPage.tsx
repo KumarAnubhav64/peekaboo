@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Camera, Check, FolderKanban, Link2, Trash2, X } from "lucide-react";
+import { Camera, Check, FolderOpen, LinkSimple, Trash, X } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,7 +212,7 @@ export default function LibraryPage() {
         <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card px-2 py-1.5 shadow-xl">
           <span className="px-2 text-sm font-medium">{selected.size} selected</span>
           <Button variant="ghost" size="sm" onClick={copyLinks} className="gap-1.5">
-            <Link2 className="h-4 w-4" /> Copy links
+            <LinkSimple className="h-4 w-4" /> Copy links
           </Button>
           <Button
             variant="ghost"
@@ -220,7 +220,7 @@ export default function LibraryPage() {
             className="gap-1.5 text-muted-foreground"
             onClick={() => showToast("Albums are coming soon")}
           >
-            <FolderKanban className="h-4 w-4" /> Album
+            <FolderOpen className="h-4 w-4" /> Album
           </Button>
           <Button
             variant="ghost"
@@ -228,7 +228,7 @@ export default function LibraryPage() {
             className="gap-1.5 text-muted-foreground"
             onClick={() => showToast("Delete is coming soon")}
           >
-            <Trash2 className="h-4 w-4" /> Delete
+            <Trash className="h-4 w-4" /> Delete
           </Button>
           <Button
             variant="ghost"

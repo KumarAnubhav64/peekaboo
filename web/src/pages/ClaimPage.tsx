@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2, Loader2, Lock, XCircle } from "lucide-react";
+import { CheckCircle, CircleNotch, Lock, XCircle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,7 +71,7 @@ export default function ClaimPage() {
   if (phase === "loading") {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CircleNotch className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function ClaimPage() {
             disabled={!selfie || phase === "busy"}
             onClick={verify}
           >
-            {phase === "busy" ? <Loader2 className="animate-spin" /> : <Lock />}
+            {phase === "busy" ? <CircleNotch className="animate-spin" /> : <Lock />}
             {phase === "busy" ? "Verifying…" : "Verify my identity"}
           </Button>
 
@@ -148,8 +148,8 @@ export default function ClaimPage() {
                     : "border-border bg-muted text-muted-foreground"
               }`}
             >
-              {status.kind === "info" && <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />}
-              {status.kind === "ok" && <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />}
+              {status.kind === "info" && <CircleNotch className="mt-0.5 h-4 w-4 animate-spin" />}
+              {status.kind === "ok" && <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />}
               {status.kind === "error" && <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
               {status.message}
             </div>

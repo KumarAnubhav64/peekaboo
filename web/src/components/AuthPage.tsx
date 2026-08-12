@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -118,7 +118,7 @@ export default function AuthPage() {
               />
             </div>
             <Button className="w-full" type="submit" disabled={busy}>
-              {busy && <Loader2 className="animate-spin" />}
+              {busy && <CircleNotch className="animate-spin" />}
               {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
             </Button>
           </form>

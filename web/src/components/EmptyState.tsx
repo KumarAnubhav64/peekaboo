@@ -1,8 +1,11 @@
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
+import type { IconProps } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
+type IconType = ComponentType<IconProps>;
+
 interface Props {
-  icon: LucideIcon;
+  icon: IconType;
   title: string;
   description: string;
   actionLabel?: string;

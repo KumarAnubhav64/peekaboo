@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Camera, CheckCircle2, Loader2, UploadCloud, XCircle } from "lucide-react";
+import { Camera, CheckCircle, CircleNotch, CloudArrowUp, XCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -79,11 +79,11 @@ export function UploadDialog({ children, onFiles }: { children: ReactNode; onFil
             {queue.map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 {item.status === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
                 ) : item.status === "error" ? (
                   <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                 ) : item.status === "analyzing" ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  <CircleNotch className="h-4 w-4 shrink-0 animate-spin text-primary" />
                 ) : (
                   <span className="h-4 w-4 shrink-0 text-[10px] font-semibold text-muted-foreground">
                     {item.progress}%
@@ -116,7 +116,7 @@ export function UploadDialog({ children, onFiles }: { children: ReactNode; onFil
             disabled={analyzing}
             onClick={() => setOpen(false)}
           >
-            <UploadCloud className="h-4 w-4" />
+            <CloudArrowUp className="h-4 w-4" />
             {analyzing ? "Uploading & analyzing…" : "Done"}
           </Button>
         )}

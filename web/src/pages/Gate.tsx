@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/auth";
 import AuthPage from "@/components/AuthPage";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 
 export default function Gate() {
   const { user, loading } = useAuth();
@@ -9,7 +9,7 @@ export default function Gate() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CircleNotch className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }

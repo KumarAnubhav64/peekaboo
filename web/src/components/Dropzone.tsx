@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Camera } from "lucide-react";
+import { Camera } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 interface Props {

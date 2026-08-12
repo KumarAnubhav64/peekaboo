@@ -1,15 +1,15 @@
 import { NavLink } from "react-router-dom";
 import {
-  FolderKanban,
-  Image,
-  Loader2,
-  LogOut,
+  CircleNotch,
+  FolderOpen,
+  Images,
   MapPin,
   Plus,
   Shapes,
-  Trash2,
+  SignOut,
+  Trash,
   Users,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/auth";
@@ -18,12 +18,12 @@ import { UploadDialog } from "@/components/UploadDialog";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/photos", label: "All photos", icon: Image },
+  { to: "/photos", label: "All photos", icon: Images },
   { to: "/people", label: "People", icon: Users },
   { to: "/places", label: "Places", icon: MapPin },
   { to: "/things", label: "Things", icon: Shapes },
-  { to: "/albums", label: "Albums", icon: FolderKanban },
-  { to: "/trash", label: "Trash", icon: Trash2 },
+  { to: "/albums", label: "Albums", icon: FolderOpen },
+  { to: "/trash", label: "Trash", icon: Trash },
 ];
 
 export function Sidebar() {
@@ -40,7 +40,7 @@ export function Sidebar() {
       <div className="px-3 pb-2">
         <UploadDialog onFiles={upload}>
           <Button className="w-full" size="sm">
-            {analyzing ? <Loader2 className="animate-spin" /> : <Plus />}
+            {analyzing ? <CircleNotch className="animate-spin" /> : <Plus />}
             {analyzing ? "Analyzing…" : "Upload"}
           </Button>
         </UploadDialog>
@@ -94,7 +94,7 @@ export function Sidebar() {
           className="mt-1 w-full justify-start text-muted-foreground"
           onClick={() => logout()}
         >
-          <LogOut className="h-4 w-4" />
+          <SignOut className="h-4 w-4" />
           Sign out
         </Button>
       </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BadgeX, Search, SlidersHorizontal, Users, X } from "lucide-react";
+import { MagnifyingGlass, SlidersHorizontal, Users, X, XCircle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,7 +44,7 @@ export function TopBar() {
           className="w-full max-w-sm justify-start text-muted-foreground"
           onClick={() => setSearchOpen(true)}
         >
-          <Search className="h-4 w-4" />
+          <MagnifyingGlass className="h-4 w-4" />
           Search by person, place, or object
           <kbd className="ml-auto rounded border bg-muted px-1.5 text-[10px] font-medium">⌘K</kbd>
         </Button>
@@ -123,7 +123,7 @@ export function TopBar() {
         <div className="ml-auto flex items-center gap-2">
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
-              <BadgeX className="h-4 w-4" /> Clear
+              <XCircle className="h-4 w-4" /> Clear
             </Button>
           )}
         </div>

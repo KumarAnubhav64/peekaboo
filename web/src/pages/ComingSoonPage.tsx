@@ -1,10 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { FolderKanban, MapPin, Shapes, Trash2, type LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
+import type { IconProps } from "@phosphor-icons/react";
+import { FolderOpen, MapPin, Shapes, Trash } from "@phosphor-icons/react";
 import { EmptyState } from "@/components/EmptyState";
 
 export type ComingSoonSlug = "places" | "things" | "albums" | "trash";
 
-const COPY: Record<ComingSoonSlug, { icon: LucideIcon; title: string; description: string }> = {
+type IconType = ComponentType<IconProps>;
+
+const COPY: Record<ComingSoonSlug, { icon: IconType; title: string; description: string }> = {
   places: {
     icon: MapPin,
     title: "Places",
@@ -18,13 +22,13 @@ const COPY: Record<ComingSoonSlug, { icon: LucideIcon; title: string; descriptio
       "Objects in your photos will be tagged and searchable once object detection ships. Until then, everything is grouped by people and date.",
   },
   albums: {
-    icon: FolderKanban,
+    icon: FolderOpen,
     title: "Albums",
     description:
       "Create manual albums or smart albums that auto-fill from a saved filter — coming in the next milestone.",
   },
   trash: {
-    icon: Trash2,
+    icon: Trash,
     title: "Trash",
     description:
       "Deleted photos will live here for 30 days before being removed. Deleting is coming in the next milestone.",
