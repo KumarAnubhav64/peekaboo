@@ -32,7 +32,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full w-52 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+      <div className="flex items-center gap-2 px-3 pt-4 pb-3">
         <span className="text-xl">🫣</span>
         <span className="text-[15px] font-semibold tracking-tight">Peekaboo</span>
       </div>
@@ -46,7 +46,9 @@ export function Sidebar() {
         </UploadDialog>
       </div>
 
-      <Separator className="mx-3" />
+      {/* w-auto + stretch: inset the line to exactly the button's width.
+          (w-full + mx-3 would overflow the sidebar and misalign it.) */}
+      <Separator className="mx-3 w-auto" />
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
         {NAV.map(({ to, label, icon: Icon }) => (
@@ -68,7 +70,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <Separator className="mx-3" />
+      <Separator className="mx-3 w-auto" />
 
       <div className="p-3">
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
