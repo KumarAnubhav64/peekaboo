@@ -272,6 +272,7 @@ link — both photos should appear in the gallery (cross-photo matching works).
 | `POST` | `/api/auth/login` | `{email, password}` → sets session cookie |
 | `POST` | `/api/auth/logout` | Clears the session cookie |
 | `GET` | `/api/auth/me` | Current user (or 401) |
+| `GET` | `/api/auth/config` | Public capabilities (e.g. `google_sso` enabled?) |
 | `GET` | `/api/auth/google` | Start Google SSO (redirect) |
 | `GET` | `/api/auth/google/callback` | Google OAuth callback |
 | `POST` | `/api/upload` | Multipart `file` (auth required) → `{photo, faces[]}` |
@@ -291,12 +292,14 @@ Peekaboo/
 │   ├── main.py          # API routes + React SPA serving
 │   ├── pipeline.py      # upload → embed → token; claim → verify → search
 │   ├── face_engine.py   # InsightFace wrapper (lazy singleton)
+│   ├── auth.py          # bcrypt, JWT sessions, Google SSO, rate limiter
 │   ├── db.py            # SQLAlchemy + pgvector models, HNSW index
 │   ├── storage.py       # storage interface: LocalStorage + S3Storage (MinIO/R2)
 │   └── config.py        # env-driven settings
 ├── web/                  # React SPA (Vite + TypeScript)
+│   ├── src/auth.tsx     # AuthContext (session state, login/signup/logout)
 │   ├── src/pages/       # HomePage (upload) + ClaimPage (verify)
-│   ├── src/components/  # Dropzone, etc.
+│   ├── src/components/  # Dropzone, AuthPage, etc.
 │   └── dist/            # build output (served by FastAPI)
 ├── scripts/download_samples.py
 ├── tests/
@@ -307,3 +310,7 @@ Peekaboo/
 
 See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the second phase: moving the same
 codebase to free cloud hosting and optimizing for deployment constraints.
+
+See **[TRADEOFFS.md](TRADEOFFS.md)** for the reasoning behind every
+engineering decision — services, models, auth, and the costs we accepted to
+stay at $0/year.
