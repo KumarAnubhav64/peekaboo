@@ -1,0 +1,24 @@
+# --- Web framework ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+# --- Database (Neon Postgres + pgvector) ---
+sqlalchemy>=2.0.30
+psycopg[binary]>=3.2
+pgvector>=0.3.0
+
+# --- Face recognition pipeline ---
+numpy>=1.26
+opencv-python-headless>=4.10
+insightface>=0.7.3
+onnxruntime>=1.18
+Pillow>=10.0
+
+# --- S3-compatible object storage (MinIO local / Cloudflare R2 prod) ---
+boto3>=1.34
+
+# --- Config / dev ---
+python-dotenv>=1.0
+pytest>=8.0
+httpx>=0.27

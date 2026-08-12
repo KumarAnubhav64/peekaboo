@@ -1,0 +1,27 @@
+# secrets
+.env
+
+# runtime data (photos, crops, selfies, sqlite)
+data/
+
+# downloaded models
+models/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# frontend build
+web/node_modules/
+web/dist/
+
+# misc
+.DS_Store
+
+# logs
+*.log
+
+web/*.tsbuildinfo

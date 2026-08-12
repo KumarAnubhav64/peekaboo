@@ -1,0 +1,269 @@
+# 🫣 Peekaboo
+
+**Upload a photo → every person in it gets a private link → after a selfie challenge, each person sees every photo containing them.**
+
+A production-grade, **100% free** face-recognition pipeline:
+
+| Layer | Choice | Cost |
+|---|---|---|
+| Web framework | FastAPI + Uvicorn | free |
+| Face engine | InsightFace (SCRFD + ArcFace, 512-d) | free, MIT |
+| Database | Neon Postgres + `pgvector` (HNSW index) | free tier |
+| Storage | MinIO / Cloudflare R2 (S3-compatible) or local disk | free |
+
+## Storage — S3-compatible by default
+
+Images live behind one storage interface with two backends, switched by a
+single env var (`STORAGE_BACKEND=local|s3`):
+
+```mermaid
+flowchart LR
+    APP[Peekaboo app] --> IF{{Storage interface<br/>save / read / exists / delete}}
+    IF -->|STORAGE_BACKEND=local| FS[(Local disk<br/>data/)]
+    IF -->|STORAGE_BACKEND=s3| MINIO[MinIO<br/>local dev · free]
+    IF -->|STORAGE_BACKEND=s3| R2[Cloudflare R2<br/>prod · 10 GB free · zero egress]
+```
+
+* **Local dev:** `STORAGE_BACKEND=local` (default) or MinIO in Docker — same S3 API as production.
+* **Production:** Cloudflare R2 — **10 GB free, $0 egress**, so serving photo galleries never costs anything. Just fill in `S3_*` env vars; zero code changes.
+* Keys like `photos/<uuid>.jpg` are identical on both backends, and every key is validated against a strict pattern (no path traversal).
+
+---
+
+## How it works
+
+```mermaid
+flowchart TB
+    U[Uploader] -->|1. POST /api/upload| API[FastAPI app]
+    API --> PIPE[Pipeline]
+    PIPE --> FE[FaceEngine<br/>SCRFD detect + ArcFace embed]
+
+    FE --> DB[(Neon Postgres<br/>pgvector + HNSW)]
+    FE --> FS[(Local storage<br/>photos / crops / selfies)]
+
+    P[Person in photo] -->|2. GET /claim/token| API
+    P -->|3. POST /api/claim/token + selfie| API
+    API --> PIPE
+
+    DB -->|4. cosine KNN search| API
+    API -->|5. matching photos| P
+```
+
+The **classification challenge**:
+
+```mermaid
+flowchart LR
+    A[Uploaded image] --> B[Decode + downscale]
+    B --> C[Face detection<br/>SCRFD]
+    C --> D{faces found?}
+    D -- no --> E[400: no face detected]
+    D -- yes --> F[Align + embed<br/>ArcFace 512-d]
+    F --> G[Store vec + crop + token per face]
+    G --> H[Uploader shares private link per face]
+
+    H --> I[Person uploads selfie]
+    I --> J[Embed selfie face]
+    J --> K{cosine sim ≥ 0.42?}
+    K -- no --> L[Rejected — no access]
+    K -- yes --> M[HNSW KNN search<br/>across all faces]
+    M --> N[Show every photo<br/>containing this person]
+```
+
+### Upload flow (sequence)
+
+```mermaid
+sequenceDiagram
+    participant U as Uploader
+    participant API as FastAPI
+    participant FE as FaceEngine
+    participant DB as Neon Postgres
+    participant FS as Storage
+
+    U->>API: POST /api/upload (photo.jpg)
+    API->>API: validate size + downscale
+    API->>FS: save original photo
+    API->>FE: detect faces + embeddings
+    FE-->>API: faces[bbox, vec512]
+    loop each detected face
+        API->>FS: save face crop
+        API->>DB: INSERT face (vec, token, bbox)
+    end
+    API-->>U: {photo, faces[], share_links[]}
+    Note over U: copies each person's private link<br/>(WhatsApp / email / anywhere)
+```
+
+### Claim flow (sequence)
+
+```mermaid
+sequenceDiagram
+    participant P as Person in photo
+    participant API as FastAPI
+    participant FE as FaceEngine
+    participant DB as Neon Postgres
+    participant FS as Storage
+
+    P->>API: GET /claim/{token}
+    API-->>P: claim page + face crop (token-gated)
+    P->>API: POST /api/claim/{token} (selfie)
+    API->>FE: embed selfie face
+    API->>DB: load face[token] → cosine sim
+    alt sim >= threshold (0.42)
+        API->>DB: mark verified + save selfie (audit)
+        API->>DB: HNSW KNN search for matching faces
+        DB-->>API: matching faces (distinct photos)
+        API-->>P: 200 {verified, photos[]}
+    else sim < threshold
+        API-->>P: 403 rejected (no photos shown)
+    end
+    P->>API: GET /api/photo/{id}?token=… (token-gated)
+```
+
+### Data model
+
+```mermaid
+erDiagram
+    PHOTOS ||--o{ FACES : contains
+    PHOTOS {
+        uuid id PK
+        text original_name
+        text storage_key
+        int width
+        int height
+        int num_faces
+        timestamp uploaded_at
+    }
+    FACES {
+        uuid id PK
+        uuid photo_id FK
+        text bbox
+        text crop_key
+        vector_512 vec "ArcFace embedding"
+        text token UK "claim link = credential"
+        boolean verified
+        float best_sim
+        text selfie_key
+        timestamp created_at
+    }
+```
+
+---
+
+## Privacy model
+
+* A **claim token is the credential** — it's a 128-bit random secret minted per face.
+* Photos and face crops are only served to a token that belongs to a face **in** the photo (or a face matching it beyond the similarity threshold).
+* An uploader never sees other people's photos — only the photo they uploaded and the crops from it.
+* Verification selfies are stored for audit so a rejected/wrong claim can be reviewed.
+* No emails, no phone numbers, no accounts — fully anonymous.
+
+> ⚠️ Face recognition has legal/privacy implications (e.g. GDPR, BIPA). Only process photos of people who consented to being in the system.
+
+---
+
+## Local setup (laptop, "more resources" mode)
+
+**1. Clone & prepare**
+
+```bash
+cd Peekaboo
+uv venv --python 3.12 .venv          # uv installs Python 3.12 if needed
+source .venv/bin/activate
+uv pip install -r requirements.txt   # first install downloads ~400MB of ML deps
+```
+
+**2. Start the free local services** (Postgres+pgvector on 5433, MinIO S3 on 9000):
+
+```bash
+docker run -d --name faceclaim-pg -p 5433:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=faceclaim \
+  pgvector/pgvector:pg16
+
+docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+  minio/minio server /data --console-address ":9001"
+```
+
+> Keep `STORAGE_BACKEND=local` (disk) for the simplest laptop run, or set it to
+> `s3` with the MinIO endpoint to exercise the exact production storage path:
+> `S3_ENDPOINT_URL=http://localhost:9000 S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin S3_REGION=us-east-1`.
+
+**3. Configure**
+
+```bash
+cp .env.example .env   # DATABASE_URL already points at the local pgvector db
+```
+
+**4. Download sample faces (optional, for testing without your own photos)**
+
+```bash
+uv run python scripts/download_samples.py
+```
+
+**5. Build & run**
+
+```bash
+cd web && npm install && npm run build && cd ..   # React SPA -> web/dist
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+Open <http://localhost:8000> — FastAPI serves the built React app. On first
+request the InsightFace model pack (`buffalo_l`, ~370 MB) downloads
+automatically into `models/`.
+
+> **Frontend dev with hot reload:** run `uvicorn` on port 8000 and
+> `cd web && npm run dev` (port 5173, proxies `/api` to 8000).
+
+### Test the whole loop with samples
+
+| Step | File | Role |
+|---|---|---|
+| 1. Upload | `data/samples/two_people.jpg` | uploader |
+| 2. Copy link | for either detected face | — |
+| 3. Open `/claim/<token>` | — | person in photo |
+| 4. Verify | `data/samples/obama.jpg` (the face from step 1) | passes |
+| 5. Negative test | `data/samples/biden.jpg` on an Obama link | rejected |
+
+Also upload `obama.jpg` and `obama2.jpg` as two *separate* photos, then claim one
+link — both photos should appear in the gallery (cross-photo matching works).
+
+---
+
+## API reference
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/` | React SPA (home / upload) |
+| `GET` | `/claim/{token}` | React SPA (verify) — client-side route |
+| `POST` | `/api/upload` | Multipart `file` → `{photo, faces[]}` |
+| `GET` | `/api/claim-info/{token}` | Face id + crop URL for the claim SPA |
+| `POST` | `/api/claim/{token}` | Multipart selfie `file` → `{status, photos[]}` |
+| `GET` | `/api/photo/{photo_id}?token=` | Token-gated original photo |
+| `GET` | `/api/crop/{face_id}?token=` | Token-gated face crop |
+| `GET` | `/health` | Liveness + DB check |
+
+---
+
+## Project structure
+
+```
+Peekaboo/
+├── app/                  # FastAPI backend
+│   ├── main.py          # API routes + React SPA serving
+│   ├── pipeline.py      # upload → embed → token; claim → verify → search
+│   ├── face_engine.py   # InsightFace wrapper (lazy singleton)
+│   ├── db.py            # SQLAlchemy + pgvector models, HNSW index
+│   ├── storage.py       # storage interface: LocalStorage + S3Storage (MinIO/R2)
+│   └── config.py        # env-driven settings
+├── web/                  # React SPA (Vite + TypeScript)
+│   ├── src/pages/       # HomePage (upload) + ClaimPage (verify)
+│   ├── src/components/  # Dropzone, etc.
+│   └── dist/            # build output (served by FastAPI)
+├── scripts/download_samples.py
+├── tests/
+└── DEPLOYMENT.md        # laptop → free-cloud migration plan
+```
+
+---
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the second phase: moving the same
+codebase to free cloud hosting and optimizing for deployment constraints.
