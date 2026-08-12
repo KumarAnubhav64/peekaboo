@@ -1,0 +1,27 @@
+# VCS / tooling
+.git
+.pytest_cache
+__pycache__
+*.pyc
+
+# Python env
+.venv
+
+# Runtime data (uploaded photos, crops, selfies)
+data/
+
+# Downloaded model packs — only the small committed ONNX classifiers ship;
+# buffalo_l downloads at runtime into a mounted volume.
+models/*
+!models/ssd_mobilenet_v1.onnx
+!models/places365_resnet18.onnx
+!models/categories_places365.txt
+
+# Frontend build artifacts (rebuilt in the node stage)
+web/node_modules
+web/dist
+
+# Secrets
+.env
+.env.bak
+.env.*.local

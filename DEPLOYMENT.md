@@ -1,3 +1,12 @@
+# 🚀 Deployment plan — laptop, free cloud, or your own hardware
+
+> **Prefer running everything on your own machine / external drive / NAS?**
+> There's a one-command Docker Compose suite — app + Postgres + MinIO — with
+> all data under a single swappable `DATA_ROOT` folder:
+> **[SELFHOST.md](SELFHOST.md)**
+
+---
+
 # 🚀 Deployment plan — laptop first, then free cloud
 
 The project is built in **two phases with the same codebase**; only environment

@@ -22,12 +22,15 @@ single env var (`STORAGE_BACKEND=local|s3`):
 flowchart LR
     APP[Peekaboo app] --> IF{{Storage interface<br/>save / read / exists / delete}}
     IF -->|STORAGE_BACKEND=local| FS[(Local disk<br/>data/)]
-    IF -->|STORAGE_BACKEND=s3| MINIO[MinIO<br/>local dev · free]
+    IF -->|STORAGE_BACKEND=s3| MINIO[MinIO<br/>local dev · external HDD · NAS]
     IF -->|STORAGE_BACKEND=s3| NEON[Neon object storage<br/>S3-compatible · free tier]
     IF -->|STORAGE_BACKEND=s3| R2[Cloudflare R2<br/>10 GB free · zero egress]
 ```
 
 * **Local dev:** `STORAGE_BACKEND=local` (default) or MinIO in Docker — same S3 API as production.
+* **Self-hosted suite:** `docker compose up -d` brings up the app + Postgres +
+  MinIO on your own machine, with every byte under one `DATA_ROOT` folder you
+  can point at an **external hard disk or NAS** — see [SELFHOST.md](SELFHOST.md).
 * **Neon (this project):** Neon's **S3-compatible object storage** — copy the
   endpoint + access key/secret from Neon console (Storage → S3) and set
   `STORAGE_BACKEND=s3` with the standard AWS env names:
@@ -368,7 +371,11 @@ Peekaboo/
 ├── scripts/download_samples.py
 ├── scripts/live_flow_test.py
 ├── scripts/backfill_enrichment.py  # re-classify photos uploaded pre-enrichment
+├── scripts/check_stack.py          # smoke test for the self-hosted Docker suite
 ├── tests/
+├── Dockerfile + entrypoint.sh      # app image (React built in-stage)
+├── docker-compose.yml              # self-hosted suite: app + Postgres + MinIO
+├── SELFHOST.md                     # run on your own disk/server/NAS
 ├── DEPLOYMENT.md        # laptop → free-cloud migration plan
 └── TRADEOFFS.md         # every engineering decision + the cost accepted
 ```
