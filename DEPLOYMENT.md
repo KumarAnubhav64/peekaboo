@@ -104,13 +104,44 @@ Both use boto3 + the S3 API; the bucket auto-creates on first use.
 
 ---
 
+## Auth & multi-tenancy (implemented)
+
+Every account is a **tenant**: each user gets their own photo library, and all
+face searches / claim lookups are scoped to that tenant (verified live: two
+accounts uploading photos of the *same person* only ever see their own).
+
+* Email/password signup + login (bcrypt hashes, JWT sessions in httpOnly cookies).
+* Optional **Google SSO** (OAuth 2.0) — off by default, enabled by setting
+  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`.
+* Lightweight in-memory rate limiter on auth endpoints (5/min per IP).
+* Claims are unauthenticated by design (share links) but token-gated.
+
+### Setting up Google SSO
+
+1. Google Cloud Console → APIs & Services → **Credentials → Create OAuth client ID**
+   (Web application).
+2. Authorized redirect URI: `{PUBLIC_BASE_URL}/api/auth/google/callback`
+   (e.g. `http://localhost:8000/api/auth/google/callback` for local dev).
+3. Add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` to `.env`.
+4. Restart the app — the Google button appears on the auth page.
+
+### Production auth checklist
+
+- [ ] Generate a real `JWT_SECRET` (`python -c "import secrets; print(secrets.token_hex(32))"`).
+- [ ] Set `COOKIE_SECURE=true` (HTTPS only).
+- [ ] SameSite=strict cookies — already set; do not loosen.
+- [ ] In-memory rate limiter resets on restart — swap for a DB-backed limiter
+      when deploying to multiple workers.
+
+---
+
 ## Security checklist
 
 - [x] Claim tokens are `secrets.token_urlsafe(18)` (~128 bits) — unguessable.
 - [x] Token-gated image serving (`photo_accessible` / `face_crop_accessible`).
 - [x] Path-traversal guard in storage keys.
 - [x] Upload size + type validation; server-side downscaling.
-- [ ] Add rate limiting (e.g. slowapi) before public deployment.
+- [x] Rate limiting on auth endpoints (in-memory, 5/min per IP) — upgrade to DB-backed for multi-worker.
 - [ ] Add request size limits at the reverse proxy.
 - [ ] Run over HTTPS only; set `PUBLIC_BASE_URL`.
 - [ ] Consider expiring tokens / selfie-retention policy.

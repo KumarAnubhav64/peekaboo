@@ -38,10 +38,34 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    """A registered account. Each user is their own tenant: they own the photo
+    library, and claim links only ever search inside their tenant's pool."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # bcrypt hash; NULL for accounts created purely via Google SSO.
+    password_hash: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    google_sub: Mapped[str | None] = mapped_column(String(100), unique=True, index=True, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    photos: Mapped[list["Photo"]] = relationship(back_populates="owner")
+
+
 class Photo(Base):
     __tablename__ = "photos"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    # Multi-tenant scoping: every row belongs to exactly one account.
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     original_name: Mapped[str] = mapped_column(String(255))
     storage_key: Mapped[str] = mapped_column(String(500))
     width: Mapped[int] = mapped_column(Integer)
@@ -52,6 +76,7 @@ class Photo(Base):
     )
 
     # Relationship drives unit-of-work insert ordering (parent before child).
+    owner: Mapped["User"] = relationship(back_populates="photos")
     faces: Mapped[list["Face"]] = relationship(back_populates="photo")
 
 
@@ -61,6 +86,11 @@ class Face(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     photo_id: Mapped[str] = mapped_column(
         ForeignKey("photos.id", ondelete="CASCADE"), index=True
+    )
+    # Denormalized tenant id so every query (incl. the vector search) can be
+    # scoped with a simple WHERE clause.
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     # JSON array [x1, y1, x2, y2] in pixel coordinates of the original photo.
     bbox: Mapped[str] = mapped_column(Text)
@@ -126,15 +156,36 @@ engine = build_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    return conn.execute(
+        text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = :t AND column_name = :c"
+        ),
+        {"t": table, "c": column},
+    ).scalar() is not None
+
+
 def init_db() -> None:
     """Create the pgvector extension, tables, and the HNSW similarity index.
 
-    The index is created only once (guarded by a pg_indexes check) so startup
-    stays fast as the faces table grows.
+    Includes a tiny built-in migration: tables created before multi-tenancy
+    existed get a nullable tenant_id column (pre-launch data is dev-only, so
+    those rows are cleared rather than guessed at).
     """
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         Base.metadata.create_all(conn)
+
+        for table in ("photos", "faces"):
+            if not _column_exists(conn, table, "tenant_id"):
+                conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN tenant_id VARCHAR(36) REFERENCES users(id) ON DELETE CASCADE")
+                )
+                # Pre-multi-tenancy rows have no owner; this is dev-only data.
+                conn.execute(text(f"TRUNCATE {table} CASCADE"))
+                logger.info("Migrated %s: added tenant_id column", table)
+
         has_index = conn.execute(
             text("SELECT 1 FROM pg_indexes WHERE indexname = 'ix_faces_vec_hnsw'")
         ).scalar()

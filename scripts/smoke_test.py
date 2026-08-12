@@ -10,6 +10,7 @@ of a different person, and cross-photo matching.
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 # Allow `python scripts/smoke_test.py` from anywhere in the repo.
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import pipeline
 from app.config import settings
+from app.db import SessionLocal, User
 
 SAMPLES = Path(__file__).resolve().parent.parent / "data" / "samples"
 PASS, FAIL = 0, 0
@@ -40,8 +42,19 @@ def main() -> int:
     pipeline.init_pipeline()
     print(f"threshold={settings.match_threshold}")
 
+    # Create a test tenant (the signed-in account that owns the library).
+    with SessionLocal() as s:
+        tenant = s.scalar(
+            s.query(User).filter(User.email == "smoke@test.local")
+        ) or User(
+            id=str(uuid.uuid4()), email="smoke@test.local", password_hash="x"
+        )
+        s.add(tenant)
+        s.commit()
+        tenant_id = tenant.id
+
     print("\n[1] Upload a photo with two people")
-    up = pipeline.process_upload(read("two_people.jpg"), "two_people.jpg")
+    up = pipeline.process_upload(read("two_people.jpg"), "two_people.jpg", tenant_id)
     check("two faces detected", len(up.faces) == 2, f"got {len(up.faces)}")
     check("unique tokens minted", len({f.token for f in up.faces}) == 2)
 
@@ -69,9 +82,9 @@ def main() -> int:
     check("biden rejected on obama's face", rejected)
 
     print("\n[4] Cross-photo matching (same person, different photos)")
-    pipeline.process_upload(read("obama.jpg"), "obama.jpg")
-    pipeline.process_upload(read("obama2.jpg"), "obama2.jpg")
-    up2 = pipeline.process_upload(read("obama2.jpg"), "obama2_again.jpg")
+    pipeline.process_upload(read("obama.jpg"), "obama.jpg", tenant_id)
+    pipeline.process_upload(read("obama2.jpg"), "obama2.jpg", tenant_id)
+    up2 = pipeline.process_upload(read("obama2.jpg"), "obama2_again.jpg", tenant_id)
     result = pipeline.claim_face(up2.faces[0].token, read("obama.jpg"))
     check("claim verified", result.status == "verified", result.status)
     check("multiple photos returned", len(result.photos) >= 2, f"got {len(result.photos)}")

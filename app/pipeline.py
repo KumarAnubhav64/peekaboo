@@ -125,10 +125,10 @@ def crop_face(img_bgr: np.ndarray, bbox: list[float], margin: float = 0.30) -> n
 # ---------------------------------------------------------------------------
 
 
-def process_upload(data: bytes, original_name: str) -> UploadResult:
+def process_upload(data: bytes, original_name: str, tenant_id: str) -> UploadResult:
     """Detect every face in an uploaded photo, store crops + embeddings, and
-    mint one claim token per face. Returns the tokens so the uploader can
-    share a link with each person in the photo."""
+    mint one claim token per face. Everything is scoped to `tenant_id` (the
+    owning account's library)."""
     if not data:
         raise PipelineError("Empty upload.")
     if len(data) > settings.max_upload_mb * 1024 * 1024:
@@ -152,6 +152,7 @@ def process_upload(data: bytes, original_name: str) -> UploadResult:
             session.add(
                 Photo(
                     id=photo_id,
+                    tenant_id=tenant_id,
                     original_name=original_name or "photo.jpg",
                     storage_key=photo_key,
                     width=width,
@@ -174,6 +175,7 @@ def process_upload(data: bytes, original_name: str) -> UploadResult:
                     Face(
                         id=face_id,
                         photo_id=photo_id,
+                        tenant_id=tenant_id,
                         bbox=str([round(v, 1) for v in face.bbox]),
                         crop_key=crop_key,
                         vec=face.embedding.tolist(),
@@ -255,8 +257,8 @@ def claim_face(token: str, selfie_data: bytes) -> ClaimResult:
         face.selfie_key = selfie_key
         session.commit()
 
-        # Find every face in the database that matches this person.
-        matches = _search_matches(session, face.vec, settings.max_distance)
+        # Find every face in THIS tenant's library that matches this person.
+        matches = _search_matches(session, face.vec, settings.max_distance, face.tenant_id)
         # One entry per distinct photo (keep the best-matching face for the thumb).
         best_face: dict[str, str] = {}
         for photo_id, face_id in matches:
@@ -286,8 +288,9 @@ def claim_face(token: str, selfie_data: bytes) -> ClaimResult:
         )
 
 
-def _search_matches(session, vec, max_dist: float) -> list[tuple[str, str]]:
-    """pgvector HNSW cosine search. Returns (photo_id, face_id) pairs."""
+def _search_matches(session, vec, max_dist: float, tenant_id: str) -> list[tuple[str, str]]:
+    """pgvector HNSW cosine search, scoped to one tenant's library.
+    Returns (photo_id, face_id) pairs."""
     from pgvector import Vector as PgVector
     from sqlalchemy import text
 
@@ -296,12 +299,12 @@ def _search_matches(session, vec, max_dist: float) -> list[tuple[str, str]]:
             """
             SELECT photo_id, id
             FROM faces
-            WHERE vec <=> :q < :max_dist
+            WHERE tenant_id = :tid AND vec <=> :q < :max_dist
             ORDER BY vec <=> :q
             LIMIT :limit
             """
         ),
-        {"q": PgVector(vec), "max_dist": max_dist, "limit": settings.search_limit},
+        {"q": PgVector(vec), "max_dist": max_dist, "limit": settings.search_limit, "tid": tenant_id},
     ).all()
     return [(r[0], r[1]) for r in rows]
 
@@ -325,7 +328,7 @@ def photo_accessible(photo_id: str, token: str) -> bool:
             if pf.token == token:
                 return True
         for pf in photo_faces:
-            if np.dot(face.vec, pf.vec) >= settings.match_threshold:
+            if pf.tenant_id == face.tenant_id and np.dot(face.vec, pf.vec) >= settings.match_threshold:
                 return True
         return False
 
@@ -340,6 +343,8 @@ def face_crop_accessible(face_id: str, token: str) -> bool:
             return False
         if target.token == token:
             return True
+        if target.tenant_id != claimer.tenant_id:
+            return False
         return np.dot(claimer.vec, target.vec) >= settings.match_threshold
 
 

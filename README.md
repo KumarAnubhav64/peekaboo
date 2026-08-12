@@ -148,6 +148,40 @@ erDiagram
 
 ---
 
+## Accounts & multi-tenancy
+
+Peekaboo is multi-tenant like Google Photos: **each account owns its own photo
+library**, and claim links only ever search inside the library they were minted
+from — even for the same person's face in two different accounts.
+
+```mermaid
+flowchart TB
+    subgraph Alice[Alice's account]
+        A1[(library: photos + faces)]
+    end
+    subgraph Bob[Bob's account]
+        B1[(library: photos + faces)]
+    end
+    ClaimA[Alice's claim link] -->|selfie verify + search| A1
+    ClaimB[Bob's claim link] -->|selfie verify + search| B1
+    ClaimA -.no access.-> B1
+```
+
+* **Sign in:** email/password (bcrypt hashes) or **Google SSO** (OAuth 2.0).
+* **Sessions:** JWT in an httpOnly, SameSite=Lax cookie — no token in JS.
+* **Uploads** require an account (`POST /api/upload` → 401 without a session).
+* **Claiming stays anonymous** — the person in the photo never needs an account.
+* Every query is scoped by `tenant_id` (defense in depth, not just the URL).
+
+### Enabling Google SSO
+
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) →
+   **Create OAuth client ID → Web application**.
+2. Add the authorized redirect URI: `http://localhost:8000/api/auth/google/callback` (or your `PUBLIC_BASE_URL`).
+3. Put the client ID/secret in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
+
+---
+
 ## Privacy model
 
 * A **claim token is the credential** — it's a 128-bit random secret minted per face.
@@ -234,7 +268,13 @@ link — both photos should appear in the gallery (cross-photo matching works).
 |---|---|---|
 | `GET` | `/` | React SPA (home / upload) |
 | `GET` | `/claim/{token}` | React SPA (verify) — client-side route |
-| `POST` | `/api/upload` | Multipart `file` → `{photo, faces[]}` |
+| `POST` | `/api/auth/signup` | `{email, password, name?}` → sets session cookie |
+| `POST` | `/api/auth/login` | `{email, password}` → sets session cookie |
+| `POST` | `/api/auth/logout` | Clears the session cookie |
+| `GET` | `/api/auth/me` | Current user (or 401) |
+| `GET` | `/api/auth/google` | Start Google SSO (redirect) |
+| `GET` | `/api/auth/google/callback` | Google OAuth callback |
+| `POST` | `/api/upload` | Multipart `file` (auth required) → `{photo, faces[]}` |
 | `GET` | `/api/claim-info/{token}` | Face id + crop URL for the claim SPA |
 | `POST` | `/api/claim/{token}` | Multipart selfie `file` → `{status, photos[]}` |
 | `GET` | `/api/photo/{photo_id}?token=` | Token-gated original photo |

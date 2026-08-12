@@ -168,6 +168,90 @@ body {
 .face-body strong { font-size: 0.9rem; }
 .face-actions { display: flex; gap: 8px; }
 
+/* ---------- Auth ---------- */
+
+.nav-right { margin-left: auto; }
+
+.user-chip { display: flex; align-items: center; gap: 10px; }
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--card-border);
+}
+
+.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+.user-email { color: var(--muted); font-size: 0.85rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.auth-card { text-align: center; }
+
+.auth-tabs { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+
+.auth-tabs .btn { flex: 1; max-width: 180px; }
+
+.auth-tabs .btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border-color: transparent;
+}
+
+.auth-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+
+.auth-form input {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.auth-form input:focus { border-color: var(--accent); }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 4px 0 16px;
+}
+
+.auth-divider::before, .auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--card-border);
+}
+
+.google-btn { margin-bottom: 6px; }
+
+.google-g {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
 /* ---------- Buttons ---------- */
 
 .btn {

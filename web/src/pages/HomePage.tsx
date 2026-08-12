@@ -1,6 +1,8 @@
 import { useState } from "react";
 import Dropzone from "../components/Dropzone";
+import AuthPage from "../components/AuthPage";
 import { ApiError, copyText, postImage, UploadResponse } from "../api";
+import { useAuth } from "../auth";
 
 interface Status {
   kind: "error" | "ok" | "info";
@@ -8,6 +10,7 @@ interface Status {
 }
 
 export default function HomePage() {
+  const { user, loading } = useAuth();
   const [status, setStatus] = useState<Status | null>(null);
   const [result, setResult] = useState<UploadResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,7 +59,20 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section className="upload-card card">
+      {loading && (
+        <section className="card claim-card">
+          <div className="spinner" />
+        </section>
+      )}
+
+      {!loading && !user && (
+        <>
+          <AuthPage />
+        </>
+      )}
+
+      {user && (
+        <section className="upload-card card">
         <Dropzone
           onFile={handleFile}
           title={
@@ -77,9 +93,10 @@ export default function HomePage() {
             {status.message}
           </div>
         )}
-      </section>
+        </section>
+      )}
 
-      {result && (
+      {user && result && (
         <section className="card results">
           <h2>
             Photo processed <span className="pill">{result.faces.length} face{result.faces.length === 1 ? "" : "s"}</span>

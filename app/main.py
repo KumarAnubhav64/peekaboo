@@ -20,15 +20,18 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+import uuid
 
-from app import pipeline
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import select, text
+
+from app import auth, pipeline
 from app.config import settings
-from app.db import Face, engine, SessionLocal
+from app.db import Face, User, engine, SessionLocal
 from app.storage import LocalStorage, storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -65,6 +68,97 @@ def base_url(request: Request) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+
+class SignupBody(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    name: str | None = Field(default=None, max_length=120)
+
+
+class LoginBody(BaseModel):
+    email: EmailStr
+    password: str
+
+
+@app.post("/api/auth/signup")
+def api_signup(body: SignupBody, request: Request):
+    if not auth.signup_limiter.allow(request.client.host if request.client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again shortly.")
+    email = body.email.lower()
+    with SessionLocal() as session:
+        if session.scalar(select(User).where(User.email == email)) is not None:
+            raise HTTPException(status_code=409, detail="An account with this email already exists.")
+        user = User(
+            id=str(uuid.uuid4()),
+            email=email,
+            name=body.name,
+            password_hash=auth.hash_password(body.password),
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    resp = JSONResponse(status_code=201, content=auth.user_dict(user))
+    auth.set_session_cookie(resp, user.id)
+    return resp
+
+
+@app.post("/api/auth/login")
+def api_login(body: LoginBody, request: Request):
+    if not auth.login_limiter.allow(request.client.host if request.client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again shortly.")
+    with SessionLocal() as session:
+        user = session.scalar(select(User).where(User.email == body.email.lower()))
+    if user is None or not auth.verify_password(body.password, user.password_hash):
+        # Same work as a real attempt, to keep the timing profile uniform.
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    resp = JSONResponse(content=auth.user_dict(user))
+    auth.set_session_cookie(resp, user.id)
+    return resp
+
+
+@app.post("/api/auth/logout")
+def api_logout():
+    resp = JSONResponse(content={"status": "ok"})
+    auth.clear_session_cookie(resp)
+    return resp
+
+
+@app.get("/api/auth/me")
+def api_me(user: User = Depends(auth.get_current_user)):
+    return auth.user_dict(user)
+
+
+@app.get("/api/auth/google")
+def api_google_start():
+    if not auth.google_sso_enabled():
+        raise HTTPException(status_code=501, detail="Google sign-in is not configured.")
+    state = auth.new_oauth_state()
+    resp = RedirectResponse(auth.google_authorize_url(state))
+    # Short-lived signed cookie holds the state we must match on the callback.
+    resp.set_cookie("oauth_state", state, max_age=600, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/api/auth/google/callback")
+def api_google_callback(code: str, state: str, request: Request):
+    if request.cookies.get("oauth_state") != state:
+        raise HTTPException(status_code=400, detail="OAuth state mismatch.")
+    try:
+        profile = auth.google_exchange_code(code)
+    except Exception as exc:
+        logger.error("Google OAuth exchange failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Google sign-in failed.") from exc
+    user = auth.find_or_create_google_user(profile)
+    resp = RedirectResponse(url="/", status_code=303)
+    auth.set_session_cookie(resp, user.id)
+    resp.delete_cookie("oauth_state", path="/")
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 
@@ -87,12 +181,12 @@ def health():
 
 
 @app.post("/api/upload")
-def api_upload(request: Request, file: UploadFile = File(...)):
+def api_upload(request: Request, file: UploadFile = File(...), user: User = Depends(auth.get_current_user)):
     # Sync endpoint: FastAPI runs it in a threadpool, keeping the blocking
-    # face-detection off the event loop.
+    # face-detection off the event loop. Requires a signed-in account.
     data = file.file.read()
     try:
-        result = pipeline.process_upload(data, file.filename or "photo.jpg")
+        result = pipeline.process_upload(data, file.filename or "photo.jpg", user.id)
     except pipeline.PipelineError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

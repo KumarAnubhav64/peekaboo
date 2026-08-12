@@ -53,6 +53,24 @@ class Settings:
     max_upload_mb: int = field(default_factory=lambda: int(_env("MAX_UPLOAD_MB", "20")))
     max_image_side: int = field(default_factory=lambda: int(_env("MAX_IMAGE_SIDE", "2048")))
 
+    # --- Auth ---
+    jwt_secret: str = field(
+        default_factory=lambda: _env(
+            "JWT_SECRET", "dev-only-secret-change-me-in-production"
+        )
+    )
+    session_days: int = field(default_factory=lambda: int(_env("SESSION_DAYS", "30")))
+    # Must be true behind HTTPS (production). False allows http:// on localhost.
+    cookie_secure: bool = field(
+        default_factory=lambda: _env("COOKIE_SECURE", "false").lower() == "true"
+    )
+
+    # --- Google SSO (optional; sign-in disabled until set) ---
+    google_client_id: str = field(default_factory=lambda: _env("GOOGLE_CLIENT_ID", ""))
+    google_client_secret: str = field(
+        default_factory=lambda: _env("GOOGLE_CLIENT_SECRET", "")
+    )
+
     # --- Misc ---
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL", "").rstrip("/"))
 

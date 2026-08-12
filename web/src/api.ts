@@ -42,10 +42,32 @@ export class ApiError extends Error {
   }
 }
 
+// httpOnly session cookie is sent automatically on same-origin requests;
+// credentials is explicit for safety.
+const FETCH: RequestInit = { credentials: "include" };
+
 export async function postImage<T>(url: string, file: File): Promise<T> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(url, { method: "POST", body: form });
+  const res = await fetch(url, { ...FETCH, method: "POST", body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(
+      (data.detail as string) || `Request failed (${res.status})`,
+      res.status,
+      data as Record<string, unknown>,
+    );
+  }
+  return data as T;
+}
+
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    ...FETCH,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError(
@@ -58,7 +80,7 @@ export async function postImage<T>(url: string, file: File): Promise<T> {
 }
 
 export async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(url, FETCH);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError(
