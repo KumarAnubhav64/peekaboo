@@ -1,0 +1,79 @@
+# syntax=docker/dockerfile:1
+# ---------------------------------------------------------------------------
+# Peekaboo — Azure Container Apps (production) image.
+#
+# Why this differs from the compose Dockerfile:
+#   * ML models are BAKED IN at build time. Azure Container Apps has no
+#     persistent volume unless you mount Azure Files, and a ~370 MB model
+#     re-download on every cold start would make the app unusable. Baking
+#     them in makes the image self-contained: uploads → Neon S3, DB → Neon.
+#   * Runs as a NON-ROOT user (ACA security default / best practice).
+#   * No volume mounts — the app is fully stateless.
+#
+# The InsightFace buffalo_l pack is NOT git-tracked (see .gitignore), so it
+# is downloaded during the build from the official release. Build with:
+#   docker build -f Dockerfile.azure -t peekaboo:azure .
+#
+# Deploy via scripts/deploy_azure.sh — see DEPLOY-AZURE.md.
+# ---------------------------------------------------------------------------
+
+# Stage 1 — build the React SPA (web/dist)
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# Stage 2 — Python runtime
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000 \
+    HOME=/home/user
+
+WORKDIR /app
+
+# OpenCV / onnxruntime / insightface system libs + curl (healthcheck) + unzip
+# (to extract the model pack downloaded during the build).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        curl \
+        unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY scripts ./scripts
+COPY --from=web /web/dist ./web/dist
+
+# Small committed ONNX classifiers (git-tracked).
+COPY models/ssd_mobilenet_v1.onnx models/places365_resnet18.onnx models/categories_places365.txt ./models/
+
+# InsightFace buffalo_l pack — downloaded at build time (not git-tracked).
+# The zip contains the 5 .onnx files at top level (no wrapper folder), so we
+# extract straight into <root>/models/buffalo_l/ — the layout insightface's
+# FaceAnalysis(root=MODEL_DIR) expects.
+RUN curl -fsSL -o /tmp/buffalo_l.zip \
+        https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip \
+    && mkdir -p ./models/models/buffalo_l \
+    && unzip -q /tmp/buffalo_l.zip -d ./models/models/buffalo_l/ \
+    && rm -f /tmp/buffalo_l.zip \
+    && ls -la ./models/models/buffalo_l/
+
+# Non-root user (ACA security best practice).
+RUN useradd --create-home --uid 1000 --shell /bin/bash user \
+    && chown -R user:user /app
+
+USER user
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -381,6 +381,9 @@ Peekaboo/
 ├── FEATURES.md                     # the full feature list (self-hosting included)
 ├── SELFHOST.md                     # run on your own disk/server/NAS
 ├── DEPLOYMENT.md        # laptop → free-cloud migration plan
+├── DEPLOY-AZURE.md      # deploy to Azure Container Apps — free, NO credit card (students)
+├── Dockerfile.azure     # stateless production image (models baked in)
+├── scripts/deploy_azure.sh  # one-command Azure deploy
 └── TRADEOFFS.md         # every engineering decision + the cost accepted
 ```
 
@@ -388,6 +391,12 @@ Peekaboo/
 
 See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the second phase: moving the same
 codebase to free cloud hosting and optimizing for deployment constraints.
+
+**Deploying to the cloud without a credit card?** If you're a student, Azure
+for Students gives **$100 / 12 months with no card** — the one-command
+[**DEPLOY-AZURE.md**](DEPLOY-AZURE.md) guide builds the stateless production
+image (`Dockerfile.azure`, models baked in) and ships it to Azure Container
+Apps (scale-to-zero, free allowance).
 
 See **[TRADEOFFS.md](TRADEOFFS.md)** for the reasoning behind every
 engineering decision — services, models, auth, and the costs we accepted to

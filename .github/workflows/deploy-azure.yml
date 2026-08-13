@@ -1,0 +1,38 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}
+          dockerfilePath: Dockerfile.azure
+          acrName: peekabooacr
+          imageToBuild: peekabooacr.azurecr.io/peekaboo:${{ github.sha }}
+          resourceGroup: peekaboo-rg
+          containerAppName: peekaboo
+          environmentVariables: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            STORAGE_BACKEND=s3
+            AWS_ENDPOINT_URL_S3=${{ secrets.AWS_ENDPOINT_URL_S3 }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=${{ secrets.AWS_REGION }}
+            S3_BUCKET=${{ secrets.S3_BUCKET }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            COOKIE_SECURE=true
+            PUBLIC_BASE_URL=${{ secrets.PUBLIC_BASE_URL }}
